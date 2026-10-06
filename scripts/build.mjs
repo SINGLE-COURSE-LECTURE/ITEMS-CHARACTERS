@@ -11,7 +11,7 @@
  * 하나라도 오류가 있으면 실패로 끝난다 (Actions 에서 막는다). 경고는 적기만 한다.
  * 쓰는 법: node scripts/build.mjs   (검사만: node scripts/build.mjs --check)
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -29,6 +29,18 @@ const LICENSES = new Set(["CC0-1.0", "own"]);
 /** 게임이 받는 파일 하나의 한도 (줄인 뒤) */
 const MAX_GAME_BYTES = 8 * 1024 * 1024;
 const ID = /^[a-z0-9][a-z0-9-]*$/;
+
+/** dist 를 비운다 — 빠진 캐릭터가 남지 않게. Node 24 의 rmSync 는 한글 경로에서 죽어서 직접 지운다 */
+function removeTree(dir) {
+  if (!existsSync(dir)) return;
+  for (const name of readdirSync(dir)) {
+    const full = join(dir, name);
+    if (statSync(full).isDirectory()) removeTree(full);
+    else unlinkSync(full);
+  }
+  rmdirSync(dir);
+}
+if (!checkOnly) removeTree(dist);
 
 const errors = [];
 const warnings = [];

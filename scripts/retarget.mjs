@@ -179,7 +179,7 @@ export function toVroidRig(doc, json, refDoc, refJson) {
  * 제약 뼈(트위스트 샘플의 J_Aim_* · J_Roll_*)에 소매 · 허벅지가 묶여 있는데, 제약이 없으면 그 뼈가 쉬는 자세에 멈춰
  * 팔다리가 움직여도 소매가 옆으로 뻗은 채 남았다. 따라가던 뼈 밑으로 옮기면(월드 자리는 그대로) 함께 움직인다.
  *   aim  — 원본 뼈(아래팔 · 종아리)를 겨누는 뼈 → 원본의 부모(위팔 · 허벅지)를 따라간다
- *   roll · rotation — 원본 뼈의 비틀림을 나눠 받는 뼈 → 원본을 따라간다 (나눠 받던 비율은 1 로 — 작은 차이)
+ *   roll · rotation — 원본 뼈의 비틀림을 받는 뼈: 다 받으면(weight 1) 원본을 따라가고, 반만 받으면 제자리에 둔다
  * 돌려주는 것: 옮긴 뼈 수
  */
 export function bakeConstraints(doc, json) {
@@ -192,6 +192,11 @@ export function bakeConstraints(doc, json) {
     const source = nodes[constraint[kind]?.source];
     const node = nodes[index];
     if (!source || !node) return;
+    // 비틀림을 반만 나눠 받는 뼈(roll · rotation, weight < 1 — 팔꿈치 · 아래팔 보조 뼈)는 옮기지 않는다.
+    // 원본 밑으로 옮기면 비틀림뿐 아니라 굽힘까지 통째로 따라가, 팔꿈치 · 손목 살이 한 관절씩 앞서 꺾여 팔이 휘어 보였다.
+    // 제자리(부모 뼈)에 두면 비틀림 나눔만 빠진다 — 작은 차이다.
+    const weight = constraint[kind]?.weight ?? 1;
+    if (kind !== "aim" && weight < 0.99) return;
     const target = kind === "aim" ? (source.getParentNode() ?? source) : source;
     if (target === node.getParentNode()) return;
     const world = node.getWorldMatrix().slice();

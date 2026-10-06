@@ -120,12 +120,20 @@ export function toVroidRig(doc, json, refDoc, refJson) {
 
   // 새 월드 행렬 — 휴머노이드 뼈는 VRoid 방향(크기 1), 피부 메시 노드는 그대로(스킨이 위치를 정한다), 나머지는 M 만 곱한다
   const skinned = new Set(nodes.filter((node) => node.getSkin()));
+  // 휴머노이드 뼈의 조상인데 휴머노이드가 아닌 노드(Root · Armature 등)는 단위 행렬로 —
+  // 여기에 크기 · 방향이 남으면 게임(Babylon)의 뼈대는 엉덩이부터라 그 몫이 빠져, 몸통을 재는 가방이 발밑에 붙었다
+  const ancestors = new Set();
+  for (const node of human.keys()) {
+    for (let parent = node.getParentNode(); parent; parent = parent.getParentNode()) if (!human.has(parent)) ancestors.add(parent);
+  }
+  const identity = compose([0, 0, 0], [0, 0, 0, 1]);
   const newWorld = new Map();
   for (const node of nodes) {
     const moved = mul(M, oldWorld.get(node));
     const entry = human.get(node);
     if (entry) newWorld.set(node, compose(translationOf(moved), entry.rotation));
     else if (skinned.has(node)) newWorld.set(node, oldWorld.get(node));
+    else if (ancestors.has(node)) newWorld.set(node, identity);
     else newWorld.set(node, moved);
   }
 

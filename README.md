@@ -10,7 +10,8 @@ characters/<id>/
   meta.json     이름 · 만든 사람 · 라이선스 · 출처 · 태그 (사람이 적는다)
   thumb.png     (선택) 고르기 화면 얼굴. 없으면 VRM 에 박힌 썸네일을 쓴다
 scripts/
-  build.mjs     검사하고 dist/ 를 만든다
+  build.mjs     검사하고 dist/ 를 만든다 (npm install 먼저)
+  optimize.mjs  게임용으로 줄이기 — 텍스처 1024 px, 쓰지 않는 것 걷어 내기 (12 MB → 5 MB)
   vrm.mjs       VRM 읽기 (꾸러미 없이)
 dist/           만들어지는 것 — git 에 넣지 않는다
   catalog.json  게임이 읽는 목록

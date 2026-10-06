@@ -3,7 +3,7 @@
  *
  *   characters/<id>/model.vrm   원본 (VRoid Studio 에서 내보낸 것, Git LFS)
  *   characters/<id>/meta.json   이름 · 라이선스 · 출처 (사람이 적는다)
- *   → dist/characters/<id>/game.glb   게임이 받는 파일 (지금은 원본 그대로 — 줄이기는 다음 단계)
+ *   → dist/characters/<id>/game.glb   게임이 받는 파일 (텍스처를 줄인 것 — optimize.mjs)
  *   → dist/characters/<id>/thumb.png  고르기 화면의 얼굴 (VRM 에 박힌 썸네일을 꺼낸다)
  *   → dist/catalog.json                게임이 읽는 목록
  * dist 는 만들어지는 것이라 git 에 넣지 않는다 — GitHub Pages 가 dist 를 그대로 내보내고, core 의 sync-characters 가 게임으로 옮긴다.
@@ -11,10 +11,11 @@
  * 하나라도 오류가 있으면 실패로 끝난다 (Actions 에서 막는다). 경고는 적기만 한다.
  * 쓰는 법: node scripts/build.mjs   (검사만: node scripts/build.mjs --check)
  */
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { optimizeModel, optimizeThumb } from "./optimize.mjs";
 import { imageBytes, readGlb, REQUIRED_BONES, vrmInfo } from "./vrm.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -23,8 +24,8 @@ const dist = join(root, "dist");
 
 /** 넣을 수 있는 라이선스 — CC0 이거나 직접 만든 것(own) */
 const LICENSES = new Set(["CC0-1.0", "own"]);
-/** 게임이 받는 파일 하나의 한도 */
-const MAX_GAME_BYTES = 15 * 1024 * 1024;
+/** 게임이 받는 파일 하나의 한도 (줄인 뒤) */
+const MAX_GAME_BYTES = 8 * 1024 * 1024;
 const ID = /^[a-z0-9][a-z0-9-]*$/;
 
 const errors = [];
@@ -72,23 +73,24 @@ for (const id of readdirSync(join(root, "characters")).sort()) {
     if (meta.license === "own") warn("VRM 정보에 「재배포 불가」로 적혀 있습니다 — 공개 저장소에 올리기 전에 VRoid Studio 에서 재배포 허용 · 라이선스를 바꿔 다시 내보내세요");
     else fail("VRM 정보에 「재배포 불가」로 적혀 있는데 CC0 라고 했습니다 — 출처의 라이선스를 다시 확인하세요");
   }
-  if (glb.bytes > MAX_GAME_BYTES) warn(`${(glb.bytes / 1048576).toFixed(1)} MB — ${MAX_GAME_BYTES / 1048576} MB 를 넘습니다 (텍스처를 줄이면 2~5 MB)`);
 
   // 썸네일 — 폴더에 thumb.png 를 직접 넣었으면 그것, 아니면 VRM 에 박힌 것
   let thumbFile = null;
   const out = join(dist, "characters", id);
   if (!checkOnly) {
     mkdirSync(out, { recursive: true });
-    copyFileSync(modelPath, join(out, "game.glb"));
+    await optimizeModel(modelPath, join(out, "game.glb"));
+    const gameBytes = statSync(join(out, "game.glb")).size;
+    if (gameBytes > MAX_GAME_BYTES) warn(`줄인 뒤에도 ${(gameBytes / 1048576).toFixed(1)} MB — ${MAX_GAME_BYTES / 1048576} MB 를 넘습니다`);
     const own = ["thumb.png", "thumb.jpg"].find((name) => existsSync(join(dir, name)));
     const embedded = vrm.thumbnailImage !== undefined ? imageBytes(glb, vrm.thumbnailImage) : null;
-    if (own) {
-      thumbFile = own;
-      copyFileSync(join(dir, own), join(out, own));
-    } else if (embedded) {
-      thumbFile = embedded.mimeType === "image/jpeg" ? "thumb.jpg" : "thumb.png";
-      writeFileSync(join(out, thumbFile), embedded.bytes);
-    } else warn("VRM 에 썸네일이 없습니다 — thumb.png 를 폴더에 직접 넣어 주세요");
+    thumbFile = "thumb.png";
+    if (own) await optimizeThumb(readFileSync(join(dir, own)), join(out, thumbFile));
+    else if (embedded) await optimizeThumb(embedded.bytes, join(out, thumbFile));
+    else {
+      thumbFile = null;
+      warn("VRM 에 썸네일이 없습니다 — thumb.png 를 폴더에 직접 넣어 주세요");
+    }
   }
   catalog.push({
     id,
@@ -99,7 +101,7 @@ for (const id of readdirSync(join(root, "characters")).sort()) {
     tags: meta.tags ?? [],
     model: `characters/${id}/game.glb`,
     thumb: thumbFile ? `characters/${id}/${thumbFile}` : null,
-    bytes: glb.bytes,
+    bytes: checkOnly ? glb.bytes : statSync(join(out, "game.glb")).size,
     vrm: vrm.version,
   });
 }

@@ -8,7 +8,7 @@ ITEMS 게임에서 고를 수 있는 캐릭터 모음. **직접 만든 VRoid 모
 characters/<id>/
   model.vrm     원본 — VRoid Studio 에서 VRM 1.0 으로 내보낸 것 (보통 git 파일, 100 MB 까지)
   meta.json     이름 · 만든 사람 · 라이선스 · 출처 · 태그 (사람이 적는다)
-  thumb.png     (선택) 고르기 화면 얼굴. 없으면 VRM 에 박힌 썸네일을 쓴다
+  thumb.png     고르기 화면 · 보관소 카드의 얼굴 — npm run thumbs 가 VRM 썸네일에서 만든다
 scripts/
   build.mjs     검사하고 dist/ 를 만든다 (npm install 먼저)
   retarget.mjs  VRoid 가 아닌 VRM(Mixamo 뼈대 등)을 VRoid 뼈대로 — 이름 · 쉬는 자세 방향 · 앞 방향 · 크기
@@ -26,8 +26,9 @@ dist/           만들어지는 것 — git 에 넣지 않는다
    ```json
    { "name": "이름", "author": "만든 사람", "license": "own", "source": "어디서 · 어떻게", "tags": [] }
    ```
-3. `npm run build` — 오류가 없어야 한다.
-4. 게임에 넣기: core 에서 `node scripts/sync-characters.mjs` (dist 를 core/assets/models/characters 로 옮긴다).
+3. `npm run thumbs` — 얼굴 사진(thumb.png)을 만든다.
+4. `npm run build` — 오류가 없어야 한다.
+5. 게임에 넣기: core 에서 `node scripts/sync-characters.mjs` (dist 를 core/assets/models/characters 로 옮긴다).
 
 ## 검사하는 것
 

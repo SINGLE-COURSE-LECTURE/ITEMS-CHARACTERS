@@ -24,8 +24,11 @@ const dist = join(root, "dist");
 
 /** VRoid 가 아닌 모델을 VRoid 뼈대로 바꿀 때의 기준 — VRoid Studio 로 만든 캐릭터 하나 */
 const REFERENCE = join(root, "characters", "items-player", "model.vrm");
-/** 넣을 수 있는 라이선스 — CC0 이거나 직접 만든 것(own) */
-const LICENSES = new Set(["CC0-1.0", "own"]);
+/**
+ * 넣을 수 있는 라이선스 — CC0 · 직접 만든 것(own) · VRM 공개 라이선스(VRM-1.0, 아래 조건을 VRM 정보로 확인)
+ * VRM-1.0 은 VRM 정보가 「재배포 허용 · 수정 후 재배포 허용 · 누구나 아바타 · 폭력 표현 허용(사냥터에서 싸운다)」 일 때만.
+ */
+const LICENSES = new Set(["CC0-1.0", "own", "VRM-1.0"]);
 /** 게임이 받는 파일 하나의 한도 (줄인 뒤) */
 const MAX_GAME_BYTES = 8 * 1024 * 1024;
 const ID = /^[a-z0-9][a-z0-9-]*$/;
@@ -81,6 +84,16 @@ for (const id of readdirSync(join(root, "characters")).sort()) {
   }
   const missing = REQUIRED_BONES.filter((bone) => !vrm.bones.includes(bone));
   if (missing.length) fail(`필수 뼈대가 없습니다: ${missing.join(", ")}`);
+  if (meta.license === "VRM-1.0") {
+    const m = vrm.meta;
+    const problems = [];
+    if (m.allowRedistribution !== true) problems.push("재배포 불가");
+    if (m.modification !== "allowModificationRedistribution") problems.push("수정 후 재배포 불가 (게임용으로 줄이는 것도 수정이다)");
+    if (m.avatarPermission !== "everyone") problems.push("누구나 아바타로 쓸 수 없음");
+    if (m.allowExcessivelyViolentUsage !== true) problems.push("폭력 표현 불가 (사냥터에서 싸운다)");
+    if (problems.length) fail(`VRM-1.0 이라고 했지만 VRM 정보가 허락하지 않습니다: ${problems.join(", ")}`);
+    if (m.creditNotation === "required") warn("크레딧 표시가 필요한 모델입니다 — 고르기 화면에 만든 사람이 보입니다");
+  }
   if (vrm.meta.allowRedistribution === false) {
     if (meta.license === "own") warn("VRM 정보에 「재배포 불가」로 적혀 있습니다 — 공개 저장소에 올리기 전에 VRoid Studio 에서 재배포 허용 · 라이선스를 바꿔 다시 내보내세요");
     else fail("VRM 정보에 「재배포 불가」로 적혀 있는데 CC0 라고 했습니다 — 출처의 라이선스를 다시 확인하세요");

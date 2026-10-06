@@ -6,7 +6,8 @@
   "description": "ITEMS 게임 캐릭터 모음 — 직접 만든 VRoid 모델과 CC0 캐릭터만",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "check": "node scripts/build.mjs --check"
+    "check": "node scripts/build.mjs --check",
+    "thumbs": "node scripts/thumbs.mjs"
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.5.1",

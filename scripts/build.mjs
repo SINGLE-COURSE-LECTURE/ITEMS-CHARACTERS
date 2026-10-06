@@ -22,6 +22,8 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const checkOnly = process.argv.includes("--check");
 const dist = join(root, "dist");
 
+/** VRoid 가 아닌 모델을 VRoid 뼈대로 바꿀 때의 기준 — VRoid Studio 로 만든 캐릭터 하나 */
+const REFERENCE = join(root, "characters", "items-player", "model.vrm");
 /** 넣을 수 있는 라이선스 — CC0 이거나 직접 만든 것(own) */
 const LICENSES = new Set(["CC0-1.0", "own"]);
 /** 게임이 받는 파일 하나의 한도 (줄인 뒤) */
@@ -67,8 +69,6 @@ for (const id of readdirSync(join(root, "characters")).sort()) {
   }
   const missing = REQUIRED_BONES.filter((bone) => !vrm.bones.includes(bone));
   if (missing.length) fail(`필수 뼈대가 없습니다: ${missing.join(", ")}`);
-  const generator = glb.json.asset?.generator ?? "";
-  if (!/VRoid/i.test(generator)) warn(`VRoid Studio 로 만든 것이 아닙니다 (${generator || "모름"}) — 게임 동작은 VRoid 뼈 이름에 맞춰져 있어 어긋날 수 있습니다`);
   if (vrm.meta.allowRedistribution === false) {
     if (meta.license === "own") warn("VRM 정보에 「재배포 불가」로 적혀 있습니다 — 공개 저장소에 올리기 전에 VRoid Studio 에서 재배포 허용 · 라이선스를 바꿔 다시 내보내세요");
     else fail("VRM 정보에 「재배포 불가」로 적혀 있는데 CC0 라고 했습니다 — 출처의 라이선스를 다시 확인하세요");
@@ -79,7 +79,11 @@ for (const id of readdirSync(join(root, "characters")).sort()) {
   const out = join(dist, "characters", id);
   if (!checkOnly) {
     mkdirSync(out, { recursive: true });
-    await optimizeModel(modelPath, join(out, "game.glb"));
+    const rig = await optimizeModel(modelPath, join(out, "game.glb"), REFERENCE);
+    if (rig) {
+      console.log(`  ${id}: VRoid 뼈대로 바꿈 — 뼈 ${rig.bones} 개, 크기 ×${rig.scale.toFixed(2)}`);
+      if (rig.unmatched.length) warn(`VRoid 에 없는 뼈라 동작이 붙지 않습니다: ${rig.unmatched.join(", ")}`);
+    }
     const gameBytes = statSync(join(out, "game.glb")).size;
     if (gameBytes > MAX_GAME_BYTES) warn(`줄인 뒤에도 ${(gameBytes / 1048576).toFixed(1)} MB — ${MAX_GAME_BYTES / 1048576} MB 를 넘습니다`);
     const own = ["thumb.png", "thumb.jpg"].find((name) => existsSync(join(dir, name)));

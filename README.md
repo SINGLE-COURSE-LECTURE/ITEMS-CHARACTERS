@@ -11,6 +11,7 @@ characters/<id>/
   thumb.png     (선택) 고르기 화면 얼굴. 없으면 VRM 에 박힌 썸네일을 쓴다
 scripts/
   build.mjs     검사하고 dist/ 를 만든다 (npm install 먼저)
+  retarget.mjs  VRoid 가 아닌 VRM(Mixamo 뼈대 등)을 VRoid 뼈대로 — 이름 · 쉬는 자세 방향 · 앞 방향 · 크기
   optimize.mjs  게임용으로 줄이기 — 텍스처 1024 px, 쓰지 않는 것 걷어 내기 (12 MB → 5 MB)
   vrm.mjs       VRM 읽기 (꾸러미 없이)
 dist/           만들어지는 것 — git 에 넣지 않는다
@@ -32,7 +33,7 @@ dist/           만들어지는 것 — git 에 넣지 않는다
 
 - 라이선스가 `CC0-1.0` · `own` 중 하나인가
 - VRM 정보가 있고 필수 뼈대(hips · spine · head · 팔다리)가 다 있는가 — 없으면 게임의 걷기 · 공격 동작이 붙지 않는다
-- VRoid Studio 로 만든 것인가 (경고) — 게임 동작은 VRoid 뼈 이름에 맞춰 리타게팅되어 있다
+- VRoid 가 아니면 VRoid 뼈대로 바꾼다 (휴머노이드 표로 이름을 붙이고 쉬는 자세를 VRoid 방향으로) — 게임 동작은 VRoid 뼈 이름으로 붙는다
 - VRM 정보의 재배포 허용 — CC0 라고 했는데 「재배포 불가」면 오류, 직접 만든 것이면 경고
 - 게임용 파일 크기 (15 MB 넘으면 경고)
 

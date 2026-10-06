@@ -173,3 +173,36 @@ export function toVroidRig(doc, json, refDoc, refJson) {
 
   return { bones: human.size, scale, unmatched };
 }
+
+/**
+ * VRM 1.0 노드 제약(VRMC_node_constraint)을 부모 관계로 굳힌다 — 게임(Babylon)은 제약을 모른다.
+ * 제약 뼈(트위스트 샘플의 J_Aim_* · J_Roll_*)에 소매 · 허벅지가 묶여 있는데, 제약이 없으면 그 뼈가 쉬는 자세에 멈춰
+ * 팔다리가 움직여도 소매가 옆으로 뻗은 채 남았다. 따라가던 뼈 밑으로 옮기면(월드 자리는 그대로) 함께 움직인다.
+ *   aim  — 원본 뼈(아래팔 · 종아리)를 겨누는 뼈 → 원본의 부모(위팔 · 허벅지)를 따라간다
+ *   roll · rotation — 원본 뼈의 비틀림을 나눠 받는 뼈 → 원본을 따라간다 (나눠 받던 비율은 1 로 — 작은 차이)
+ * 돌려주는 것: 옮긴 뼈 수
+ */
+export function bakeConstraints(doc, json) {
+  const nodes = doc.getRoot().listNodes();
+  let moved = 0;
+  json.nodes.forEach((raw, index) => {
+    const constraint = raw.extensions?.VRMC_node_constraint?.constraint;
+    if (!constraint) return;
+    const kind = Object.keys(constraint)[0];
+    const source = nodes[constraint[kind]?.source];
+    const node = nodes[index];
+    if (!source || !node) return;
+    const target = kind === "aim" ? (source.getParentNode() ?? source) : source;
+    if (target === node.getParentNode()) return;
+    const world = node.getWorldMatrix().slice();
+    const local = mul(invert(target.getWorldMatrix()), world);
+    const t = [0, 0, 0];
+    const r = [0, 0, 0, 1];
+    const s = [1, 1, 1];
+    MathUtils.decompose(local, t, r, s);
+    target.addChild(node);
+    node.setTranslation(t).setRotation(r).setScale(s);
+    moved += 1;
+  });
+  return moved;
+}

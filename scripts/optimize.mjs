@@ -14,7 +14,7 @@ import sharp from "sharp";
 
 import { resolve } from "node:path";
 
-import { humanoidOf, toVroidRig } from "./retarget.mjs";
+import { bakeConstraints, humanoidOf, toVroidRig } from "./retarget.mjs";
 import { readGlb } from "./vrm.mjs";
 
 /** 게임용 텍스처의 긴 변 */
@@ -27,6 +27,9 @@ export async function optimizeModel(input, output, reference) {
   const document = await io.read(input);
   const json = readGlb(input).json;
   let rig = null;
+  // 노드 제약은 게임이 모르므로 부모 관계로 굳힌다 (트위스트 샘플의 소매 · 허벅지)
+  const baked = bakeConstraints(document, json);
+  if (baked) console.log(`  제약 뼈 ${baked} 개를 따라가던 뼈 밑으로`);
   // 기준 캐릭터가 아니면 모두 기준 뼈대로 맞춘다. 뼈 이름이 VRoid 여도 쉬는 자세 뼈 방향이 다를 수 있다 —
   // pixiv 트위스트 샘플은 머리 뼈가 90° 돌아가 있어 목이 꺾이고 모자가 옆으로 붙었다. 이미 같은 VRoid 면 거의 그대로다
   if (resolve(input) !== resolve(reference ?? "")) {

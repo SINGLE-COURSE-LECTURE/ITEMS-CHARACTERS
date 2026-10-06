@@ -12,5 +12,3 @@
 | id | 이름 | 만든 사람 | 라이선스 | 출처 |
 | --- | --- | --- | --- | --- |
 | items-player | 기본 플레이어 | ITEMS | own | VRoid Studio 2.3.0 직접 제작 |
-| pm-crimsom | Crimsom | Polygonal Mind | CC0-1.0 | 100Avatars R1 001 (Open Source Avatars) — VRoid 뼈대로 변환 |
-| pm-jimmy | Jimmy | Polygonal Mind | CC0-1.0 | 100Avatars R1 003 (Open Source Avatars) — VRoid 뼈대로 변환 |

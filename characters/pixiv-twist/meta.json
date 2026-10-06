@@ -1,11 +1,13 @@
 {
-  "name": "트위스트 샘플",
+  "name": "기본 캐릭터 (여)",
   "author": "pixiv Inc.",
   "gender": "female",
   "license": "VRM-1.0",
   "source": "VRM1_Constraint_Twist_Sample — https://github.com/vrm-c/vrm-specification/tree/master/samples/VRM1_Constraint_Twist_Sample (VRM 공개 라이선스 1.0: 재배포 · 수정 후 재배포 허용, 누구나 아바타, 크레딧 불필요)",
   "tags": [
+    "기본",
     "VRoid",
     "공식 샘플"
-  ]
+  ],
+  "note": "기본 캐릭터(남)와 짝 — 갈색 머리 · 티셔츠 · 반바지라 게임 옷 색이 그대로 입혀진다. 원본 이름: 트위스트 샘플"
 }

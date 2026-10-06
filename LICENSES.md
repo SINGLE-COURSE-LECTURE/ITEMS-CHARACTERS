@@ -13,7 +13,7 @@
 | id | 이름 | 만든 사람 | 라이선스 | 출처 |
 | --- | --- | --- | --- | --- |
 | items-player | 기본 플레이어 | ITEMS | own | VRoid Studio 2.3.0 직접 제작 |
-| pixiv-twist | 트위스트 샘플 | pixiv Inc. | VRM-1.0 | VRM1_Constraint_Twist_Sample (vrm-c/vrm-specification 공식 샘플) |
+| pixiv-twist | 기본 캐릭터 (여) — 원본 이름 트위스트 샘플 | pixiv Inc. | VRM-1.0 | VRM1_Constraint_Twist_Sample (vrm-c/vrm-specification 공식 샘플) |
 | vroid-sendagaya-shibu | 센다가야 시부 | pixiv Inc. | CC0-1.0 | VRoid Studio 샘플 β Ver AvatarSample_1 — pixiv 공식 CC0 (vroid.pixiv.help 4402614652569) |
 | vroid-darkness-shibu | 다크니스 시부 | pixiv Inc. | CC0-1.0 | VRoid Studio 샘플 β Ver AvatarSample_1 다크니스 — pixiv 공식 CC0 (vroid.pixiv.help 4402614652569) |
 | vroid-vivi | 비비 | pixiv Inc. | CC0-1.0 | VRoid Studio 샘플 β Ver AvatarSample_2 — pixiv 공식 CC0 (vroid.pixiv.help 4402614652569) |

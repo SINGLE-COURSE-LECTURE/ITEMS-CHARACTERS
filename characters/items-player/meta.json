@@ -1,7 +1,10 @@
 {
   "name": "기본 플레이어",
   "author": "ITEMS",
+  "gender": "male",
   "license": "own",
   "source": "VRoid Studio 2.3.0 으로 직접 제작 (게임의 기본 캐릭터 player-vrm.glb)",
-  "tags": ["기본"]
+  "tags": [
+    "기본"
+  ]
 }

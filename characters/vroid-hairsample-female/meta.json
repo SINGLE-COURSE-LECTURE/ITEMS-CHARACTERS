@@ -1,7 +1,12 @@
 {
   "name": "헤어 샘플 (여)",
   "author": "pixiv Inc. (VRoid Studio 샘플)",
+  "gender": "female",
   "license": "CC0-1.0",
   "source": "VRoid Studio β 샘플 HairSample_Female.vrm — CC0 (pixiv 공식: https://vroid.pixiv.help/hc/en-us/articles/4402614652569) · 파일 https://github.com/madjin/vrm-samples",
-  "tags": ["VRoid", "공식 샘플", "CC0"]
+  "tags": [
+    "VRoid",
+    "공식 샘플",
+    "CC0"
+  ]
 }

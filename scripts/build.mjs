@@ -68,7 +68,9 @@ for (const id of readdirSync(join(root, "characters")).sort()) {
   }
   const meta = JSON.parse(readFileSync(metaPath, "utf8"));
   for (const field of ["name", "author", "license", "source"]) if (!meta[field]) fail(`meta.json 에 ${field} 가 없습니다`);
-  if (meta.license && !LICENSES.has(meta.license)) fail(`라이선스 ${meta.license} 는 넣을 수 없습니다 (CC0-1.0 · own 만)`);
+  if (meta.license && !LICENSES.has(meta.license)) fail(`라이선스 ${meta.license} 는 넣을 수 없습니다 (CC0-1.0 · own · VRM-1.0 만)`);
+  // 여성형 · 남성형 — 고르기 화면의 분류, 기본 동작(걷기 · 서 있기)을 고르는 데 쓴다
+  if (!["female", "male"].includes(meta.gender)) fail("meta.json 에 gender 를 적어 주세요 (female · male)");
 
   let glb;
   try {
@@ -125,6 +127,7 @@ for (const id of readdirSync(join(root, "characters")).sort()) {
     id,
     name: meta.name,
     author: meta.author,
+    gender: meta.gender,
     license: meta.license,
     source: meta.source,
     tags: meta.tags ?? [],

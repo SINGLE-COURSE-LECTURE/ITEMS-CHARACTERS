@@ -22,9 +22,9 @@ dist/           만들어지는 것 — git 에 넣지 않는다
 ## 캐릭터 넣기
 
 1. `characters/<영문-id>/` 폴더를 만들고 `model.vrm` 을 넣는다.
-2. `meta.json` 을 적는다.
+2. `meta.json` 을 적는다. gender 는 female(여성형) · male(남성형) — 고르기 화면 분류와 기본 동작에 쓴다.
    ```json
-   { "name": "이름", "author": "만든 사람", "license": "own", "source": "어디서 · 어떻게", "tags": [] }
+   { "name": "이름", "author": "만든 사람", "gender": "female", "license": "own", "source": "어디서 · 어떻게", "tags": [] }
    ```
 3. `npm run thumbs` — 얼굴 사진(thumb.png)을 만든다.
 4. `npm run build` — 오류가 없어야 한다.

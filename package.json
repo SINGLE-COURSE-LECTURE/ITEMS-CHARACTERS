@@ -1,0 +1,11 @@
+{
+  "name": "items-characters",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "ITEMS 게임 캐릭터 모음 — 직접 만든 VRoid 모델과 CC0 캐릭터만",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "check": "node scripts/build.mjs --check"
+  }
+}

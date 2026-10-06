@@ -1,0 +1,3 @@
+# 만들어지는 것 — scripts/build.mjs (Pages 는 Actions 가 만들어 올린다)
+dist/
+node_modules/

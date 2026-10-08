@@ -30,6 +30,11 @@ dist/           만들어지는 것 — git 에 넣지 않는다
 4. `npm run build` — 오류가 없어야 한다.
 5. 게임에 넣기: core 에서 `node scripts/sync-characters.mjs` (dist 를 core/assets/models/characters 로 옮긴다).
 
+## 체형 · 여성형 동작
+
+- **체형 굽기** — `meta.json` 에 `"shape": { "bust": 1, "waist": 1, "hips": 1 }` (배수)를 적으면 빌드가 몸 메시의 가슴 · 허리 · 골반 볼륨을 굽는다 (`scripts/shape.mjs`). 기본 캐릭터(여)가 쓴다.
+- **여성형 기본 동작** — `node ITEMS-CHARACTERS/scripts/feminine-anims.mjs` 가 core 의 동작 파일(player-anims.glb)에 Idle_F · Walk_F · Run_F 를 굽는다. 게임은 gender 가 female 이면 이것을 먼저 쓴다. 동작 파일을 다시 만들면 이것도 다시 돌린다.
+
 ## 검사하는 것
 
 - 라이선스가 `CC0-1.0` · `own` 중 하나인가

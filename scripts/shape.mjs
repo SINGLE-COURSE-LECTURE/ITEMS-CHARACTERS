@@ -11,6 +11,7 @@
  *
  * meta.json 의 "shape": { "bust": 1, "waist": 1, "hips": 1, "drape": true } — 배수. 0 이면 그 부분은 그대로. 없으면 굽지 않는다.
  * drape: false 면 윗옷이 가슴에서 늘어지지 않는다(몸에 붙는 바디슈트 · 니트), 허리도 같이 조인다.
+ * bustAt: "tip" 이면 가슴 중심을 가슴 끝 뼈(Bust2) 높이로 — 기본(가슴 뼈 아래쪽)은 트위스트 샘플에 맞춘 것.
  */
 
 /** 기본 세기 (m) — 배수 1 일 때 */
@@ -49,7 +50,13 @@ export function shapeBody(document, shape) {
 
   // 가슴 한가운데 — VRoid 가슴 뼈(Bust1)는 윗가슴 높이(쇄골 바로 밑)에 있어 그대로 쓰면 목 밑이 부푼다.
   // 높이는 가슴 뼈(J_Bip_C_Chest)와 Bust1 사이 아래쪽 1/3, 깊이는 가슴 뼈 앞
-  const centres = [left, right].filter(Boolean).map(([x, y]) => [x * 1.15, chest[1] + (y - chest[1]) * 0.3, chest[2]]);
+  // shape.bustAt === "tip" 이면 가슴 끝 뼈(Bust2) 높이 — 몸에 붙는 옷 · 피부가 드러난 모델은 가슴 꼭지가 그 높이에 있다.
+  // (기본 공식은 트위스트 샘플에 맞췄는데, 비타에서는 가슴 밑선(1.22m)을 가리켜 꼭지(1.29m)는 거의 안 나왔다)
+  const tips = shape.bustAt === "tip" ? ["J_Sec_L_Bust2", "J_Sec_R_Bust2"].map((name) => worldOf(document, name)) : [];
+  const centres =
+    shape.bustAt === "tip" && tips.every(Boolean)
+      ? tips.map(([x, y]) => [x * 0.9, y - 0.015, chest[2] - 0.03])
+      : [left, right].filter(Boolean).map(([x, y]) => [x * 1.15, chest[1] + (y - chest[1]) * 0.3, chest[2]]);
   const waistY = (hipsBone[1] + chest[1]) / 2;
   const hipY = (hipsBone[1] + upperLeg[1]) / 2 - 0.03;
   const torsoZ = hipsBone[2];

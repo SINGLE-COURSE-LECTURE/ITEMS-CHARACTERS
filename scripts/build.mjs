@@ -57,16 +57,17 @@ for (const id of readdirSync(join(root, "characters")).sort()) {
   if (!ID.test(id)) fail("폴더 이름은 영문 소문자 · 숫자 · - 만 (게임 주소에 그대로 쓴다)");
 
   const metaPath = join(dir, "meta.json");
-  const modelPath = join(dir, "model.vrm");
   if (!existsSync(metaPath)) {
     fail("meta.json 이 없습니다");
     continue;
   }
+  const meta = JSON.parse(readFileSync(metaPath, "utf8"));
+  // "from": 다른 캐릭터의 model.vrm 을 그대로 쓴다 — 체형(shape)만 바꾼 변형을 원본 중복 없이 (예: 볼륨 테스트 = 비타 + 체형)
+  const modelPath = meta.from ? join(root, "characters", meta.from, "model.vrm") : join(dir, "model.vrm");
   if (!existsSync(modelPath)) {
-    fail("model.vrm 이 없습니다");
+    fail(meta.from ? `from 의 ${meta.from}/model.vrm 이 없습니다` : "model.vrm 이 없습니다");
     continue;
   }
-  const meta = JSON.parse(readFileSync(metaPath, "utf8"));
   for (const field of ["name", "author", "license", "source"]) if (!meta[field]) fail(`meta.json 에 ${field} 가 없습니다`);
   if (meta.license && !LICENSES.has(meta.license)) fail(`라이선스 ${meta.license} 는 넣을 수 없습니다 (CC0-1.0 · own · VRM-1.0 만)`);
   // 여성형 · 남성형 — 고르기 화면의 분류, 기본 동작(걷기 · 서 있기)을 고르는 데 쓴다

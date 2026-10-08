@@ -9,7 +9,8 @@
  * 옷 · 피부 · 머리카락을 가리지 않고 같은 구역이면 같이 민다 — 피부만 밀면 옷을 뚫고, 옷만 밀면 속이 빈다.
  * 앞쪽(+Z)이 정면이다 (기준 VRoid 1.0 뼈대 — retarget 이 이 방향으로 맞춘다).
  *
- * meta.json 의 "shape": { "bust": 1, "waist": 1, "hips": 1 } — 배수. 0 이면 그 부분은 그대로. 없으면 굽지 않는다.
+ * meta.json 의 "shape": { "bust": 1, "waist": 1, "hips": 1, "drape": true } — 배수. 0 이면 그 부분은 그대로. 없으면 굽지 않는다.
+ * drape: false 면 윗옷이 가슴에서 늘어지지 않는다(몸에 붙는 바디슈트 · 니트), 허리도 같이 조인다.
  */
 
 /** 기본 세기 (m) — 배수 1 일 때 */
@@ -62,7 +63,8 @@ export function shapeBody(document, shape) {
       done.add(position);
       const material = primitive.getMaterial()?.getName() ?? "";
       // 윗옷 — 가슴에서 아래로 늘어지고, 허리는 조이지 않는다(헐렁한 티셔츠가 울퉁불퉁해졌다)
-      const top = /Tops/i.test(material);
+      // shape.drape === false 면 몸에 붙는 옷(바디슈트) — 늘어지지 않고 가슴을 따라 붙는다
+      const top = shape.drape !== false && /Tops/i.test(material);
 
       const v = [0, 0, 0];
       for (let index = 0; index < position.getCount(); index += 1) {

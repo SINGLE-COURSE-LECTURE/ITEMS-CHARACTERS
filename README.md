@@ -33,6 +33,7 @@ dist/           만들어지는 것 — git 에 넣지 않는다
 ## 체형 · 여성형 동작
 
 - **체형 굽기** — `meta.json` 에 `"shape": { "bust": 1, "waist": 1, "hips": 1 }` (배수)를 적으면 빌드가 몸 메시의 가슴 · 허리 · 골반 볼륨을 굽는다 (`scripts/shape.mjs`). 기본 캐릭터(여)가 쓴다.
+- **변형 캐릭터** — `meta.json` 에 `"from": "<다른 id>"` 를 적으면 그 캐릭터의 model.vrm 을 그대로 쓴다(원본을 두 번 넣지 않는다). 체형만 바꾼 실험용 — 예: `lab-curvy`(볼륨 테스트 (여) = 비타 + 가슴 · 골반 크게, 몸에 붙는 옷이라 `"drape": false`).
 - **여성형 기본 동작** — `node ITEMS-CHARACTERS/scripts/feminine-anims.mjs` 가 core 의 동작 파일(player-anims.glb)에 Idle_F · Walk_F · Run_F 를 굽는다. 게임은 gender 가 female 이면 이것을 먼저 쓴다. 동작 파일을 다시 만들면 이것도 다시 돌린다.
 
 ## 검사하는 것

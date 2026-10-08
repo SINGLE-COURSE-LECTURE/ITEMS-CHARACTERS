@@ -15,6 +15,7 @@ import sharp from "sharp";
 import { resolve } from "node:path";
 
 import { bakeConstraints, humanoidOf, toVroidRig } from "./retarget.mjs";
+import { shapeBody } from "./shape.mjs";
 import { readGlb } from "./vrm.mjs";
 
 /** 게임용 텍스처의 긴 변 */
@@ -23,7 +24,7 @@ export const TEXTURE_SIZE = 1024;
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 
 /** 돌려주는 것: 뼈대를 바꿨으면 그 결과({ bones, scale, unmatched }), 이미 VRoid 면 null */
-export async function optimizeModel(input, output, reference) {
+export async function optimizeModel(input, output, reference, shape = null) {
   const document = await io.read(input);
   const json = readGlb(input).json;
   let rig = null;
@@ -43,6 +44,8 @@ export async function optimizeModel(input, output, reference) {
       }
     }
   }
+  // 체형 굽기 (meta.json 의 shape) — 뼈대를 기준으로 맞춘 뒤라 앞이 +Z 다
+  if (shape) console.log(`  체형 굽기: 정점 ${shapeBody(document, shape)} 개`);
   await document.transform(
     dedup(),
     // 빈 끝 뼈도 남긴다 — 게임이 이름으로 찾는 뼈(눈 J_Adj_*_FaceEye 등)가 모델마다 끝 뼈일 수 있다

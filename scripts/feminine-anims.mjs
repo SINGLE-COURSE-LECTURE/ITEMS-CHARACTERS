@@ -141,20 +141,27 @@ const armsOf = (v) => ({
 
 /** 동작 → { legs(t), arms(t), legWeight(t), armWeight(t) } — t 는 0~1 */
 const POSES = {
-  // 차오르면(0.1) 다리를 곧게 펴 발끝을 내리고, 떠오르며 왼 무릎만 앞으로 들고 오른 다리는 뒤로 늘어뜨린다. 팔은 앞 위로 차올렸다가 몸 옆 아래로
+  // 앞 공중제비 (여성형만) — 게임 점프(높이 2.3m · 중력 22)는 약 0.9 초 떠 있고 동작 0.1 쯤에 땅을 뜬다.
+  // 착지(동작 약 0.66) 전에 똑바로 서도록 0.12 ~ 0.58 에 한 바퀴. 도는 동안 무릎을 가슴으로 당기고 팔로 감싼다
   Jump: {
     legs: keyed([
-      [0.1, { lx: -10, lk: 15, lf: 35, rx: 0, rk: 10, rf: 35, ad: 2 }],
-      [0.35, { lx: -62, lk: 90, lf: 25, rx: 8, rk: 60, rf: 30, ad: 3 }],
-      [1, { lx: -48, lk: 72, lf: 25, rx: 4, rk: 48, rf: 30, ad: 3 }],
+      [0.1, { lx: -8, lk: 10, lf: 35, rx: -2, rk: 8, rf: 35, ad: 2 }],
+      [0.24, { lx: -110, lk: 130, lf: 20, rx: -105, rk: 130, rf: 20, ad: 2 }],
+      [0.46, { lx: -110, lk: 130, lf: 20, rx: -105, rk: 130, rf: 20, ad: 2 }],
+      [0.62, { lx: -28, lk: 40, lf: 10, rx: -14, rk: 32, rf: 15, ad: 2 }],
+      [1, { lx: -30, lk: 48, lf: 20, rx: -6, rk: 28, rf: 25, ad: 2 }],
     ]),
     arms: keyed([
-      [0.05, { dn: 40, fw: -45, el: 15 }],
-      [0.35, { dn: 62, fw: -12, el: 30 }],
-      [1, { dn: 56, fw: -8, el: 28 }],
+      [0.04, { dn: -25, fw: -20, el: 10 }],
+      [0.24, { dn: 70, fw: -60, el: 95 }],
+      [0.46, { dn: 70, fw: -60, el: 95 }],
+      [0.62, { dn: 40, fw: -15, el: 25 }],
+      [1, { dn: 50, fw: -10, el: 25 }],
     ]),
-    legWeight: (t) => ramp(0.06, 0.16, t),
-    armWeight: (t) => ramp(0, 0.08, t),
+    legWeight: (t) => ramp(0.06, 0.14, t),
+    armWeight: (t) => ramp(0, 0.06, t),
+    /** 골반째 앞으로 한 바퀴 (도) */
+    flip: (t) => 360 * ramp(0.12, 0.58, t),
   },
   // 떨어지는 동안 — 두 다리를 모아 왼 무릎만 조금 굽히고, 천천히 흔든다(되풀이라 처음과 끝이 같다)
   Fall: {
@@ -285,6 +292,8 @@ for (const [name, style] of Object.entries(STYLES)) {
   const posed = (bone, t) => {
     if (!pose) return null;
     const u = duration > 0 ? t / duration : 0;
+    // 공중제비 — 골반을 부모(Root) 축 X 로 돌린다(앞이 +Z 라 양수면 머리가 앞으로 넘어간다)
+    if (bone === "J_Bip_C_Hips" && pose.flip) return { apply: (q) => mul(axis(1, 0, 0, deg(pose.flip(u))), q), w: 1 };
     const legs = pose.legs ? bonesOf(pose.legs(u))[bone] : undefined;
     if (legs) return { q: legs, w: pose.legWeight(u) };
     const arms = pose.arms ? armsOf(pose.arms(u))[bone] : undefined;
@@ -300,17 +309,17 @@ for (const [name, style] of Object.entries(STYLES)) {
     const path = channel.getTargetPath();
     const edit = path === "rotation" ? edits[node.getName()] : null;
 
-    // 새로 잡는 뼈 — 30 fps 로 다시 찍는다(원래 키가 2 개뿐인 뼈도 움직여야 하므로)
+    // 새로 잡는 뼈 — 60 fps 로 다시 찍는다(원래 키가 2 개뿐인 뼈도 움직여야 하고, 공중제비는 한 프레임에 6 도씩 돈다)
     if (path === "rotation" && posed(node.getName(), 0)) {
       const track = { times: read(sampler.getInput(), 1), values: read(sampler.getOutput(), 4) };
       const times = [];
-      for (let t = 0; t < duration; t += 1 / 30) times.push(t);
+      for (let t = 0; t < duration; t += 1 / 60) times.push(t);
       times.push(duration);
       const values = times.map((t) => {
         let q = sampleRotation(track.times, track.values, t);
         if (edit) q = edit(q, t);
-        const { q: target, w } = posed(node.getName(), t);
-        return norm(slerp(q, target, w));
+        const { q: target, apply, w } = posed(node.getName(), t);
+        return norm(apply ? apply(q) : slerp(q, target, w));
       });
       const resampled = document
         .createAnimationSampler()

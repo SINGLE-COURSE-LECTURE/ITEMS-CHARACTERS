@@ -1,6 +1,6 @@
 /**
  * 여성형 기본 동작 — 동작 파일(core/assets/models/player-anims.glb)의 서기 · 걷기 · 달리기를 바탕으로
- * 여성형 몸짓을 구워 「이름_F」 동작을 더한다 (Idle_F · Walk_F · Run_F). 게임은 여성형 캐릭터면 _F 를 먼저 찾는다.
+ * 여성형 몸짓을 구워 「이름_F」 동작을 더한다 (서기 · 걷기 · 달리기 · 점프 · 방망이 — 아래 STYLES). 게임은 여성형 캐릭터면 _F 를 먼저 찾는다.
  *
  * 동작 원본(Quaternius UAL1 · UAL2, CC0)에는 여성형 걷기 · 달리기가 없다(UAL2 의 여성 마네킹도 동작은 같은 것을 쓰라고 한다).
  * 예전에 게임 안에서 매 프레임 골반 · 팔 몸짓을 얹어 봤다가 팔이 휘어 보여 걷어 냈다 — 여기서는 키 값 자체를 고쳐 굽는다.
@@ -28,11 +28,22 @@ const deg = (value) => (value * Math.PI) / 180;
 
 /** 동작마다 고칠 세기 */
 const STYLES = {
-  // 원래 서기는 다리를 어깨보다 넓게 벌리고 주먹을 쥔 자세라 많이 모은다
-  // hipYaw 골반 돌기 배수 · hipRoll 골반 기울기 배수 · torsoRoll 가슴 기울기 배수
-  Idle: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, legIn: 7, armIn: 8, armSwing: 1, headTilt: 4 },
-  Walk: { hipYaw: 1.6, hipRoll: 0.8, torsoRoll: 0.6, legIn: 3.5, armIn: 7, armSwing: 0.6, headTilt: 0 },
-  Run: { hipYaw: 1.3, hipRoll: 0.85, torsoRoll: 0.8, legIn: 3, armIn: 10, armSwing: 0.7, headTilt: 0 },
+  // hipYaw 골반 돌기 배수 · hipRoll 골반 기울기 배수 · torsoRoll 가슴 기울기 배수 · legIn 허벅지 모으기(도)
+  // armIn 팔 모으기(도) — 체형 굽기로 골반 · 티셔츠가 넓어져 많이 모으면 손이 옷 속에 묻힌다(7~10 도에서 묻혔다)
+  // 원래 서기는 다리를 어깨보다 넓게 벌리고 주먹을 쥔 자세라 다리를 많이 모은다
+  Idle: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, legIn: 7, armIn: 1.5, armSwing: 1, headTilt: 4 },
+  Walk: { hipYaw: 1.6, hipRoll: 0.8, torsoRoll: 0.6, legIn: 3.5, armIn: 1, armSwing: 0.6, headTilt: 0 },
+  Run: { hipYaw: 1.3, hipRoll: 0.85, torsoRoll: 0.8, legIn: 3, armIn: 3, armSwing: 0.7, headTilt: 0 },
+  // 점프 — 원래는 다리를 개구리처럼 벌리고 팔을 활짝 편다. 무릎을 모으고 팔을 내린다
+  // kneeIn 허벅지를 제 축으로 안쪽 비틀기(도) — 개구리처럼 바깥을 보던 무릎이 앞을 본다. 발목에서 되돌려 발끝은 그대로
+  Jump: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, legIn: 16, kneeIn: -6, armIn: 25, armSwing: 1, headTilt: 0 },
+  Fall: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, legIn: 16, kneeIn: -6, armIn: 25, armSwing: 1, headTilt: 0 },
+  Land: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, legIn: 9, kneeIn: -4, armIn: 12, armSwing: 1, headTilt: 0 },
+  // 방망이 — 휘두르는 팔(무기 궤적)은 그대로, 넓게 벌린 다리만 모은다
+  IdleArmed: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, legIn: 5, armIn: 0, armSwing: 1, headTilt: 0 },
+  ArmedAttack1: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, legIn: 4, armIn: 0, armSwing: 1, headTilt: 0 },
+  ArmedAttack2: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, legIn: 4, armIn: 0, armSwing: 1, headTilt: 0 },
+  ArmedAttack3: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, legIn: 4, armIn: 0, armSwing: 1, headTilt: 0 },
 };
 
 // ── 사원수 (x, y, z, w) ───────────────────────────────────────────────
@@ -161,10 +172,11 @@ for (const [name, style] of Object.entries(STYLES)) {
     },
     J_Bip_C_Chest: (q) => scaleTwistSwing(q, chestMean, 1, style.torsoRoll),
     J_Bip_C_UpperChest: (q) => scaleTwistSwing(q, upperChestMean, 1, style.torsoRoll),
-    J_Bip_L_UpperLeg: (q) => mul(axis(0, 0, 1, deg(-style.legIn)), q),
-    J_Bip_R_UpperLeg: (q) => mul(axis(0, 0, 1, deg(style.legIn)), q),
-    J_Bip_L_Foot: (q) => mul(axis(0, 0, 1, deg(style.legIn)), q),
-    J_Bip_R_Foot: (q) => mul(axis(0, 0, 1, deg(-style.legIn)), q),
+    // 모으기는 부모(골반) 축으로 앞에서 곱하고, 무릎 비틀기는 허벅지 제 축(Y — 다리 길이 방향)으로 뒤에서 곱한다
+    J_Bip_L_UpperLeg: (q) => mul(mul(axis(0, 0, 1, deg(-style.legIn)), q), axis(0, 1, 0, deg(-(style.kneeIn ?? 0)))),
+    J_Bip_R_UpperLeg: (q) => mul(mul(axis(0, 0, 1, deg(style.legIn)), q), axis(0, 1, 0, deg(style.kneeIn ?? 0))),
+    J_Bip_L_Foot: (q) => mul(mul(axis(0, 1, 0, deg(style.kneeIn ?? 0)), axis(0, 0, 1, deg(style.legIn))), q),
+    J_Bip_R_Foot: (q) => mul(mul(axis(0, 1, 0, deg(-(style.kneeIn ?? 0))), axis(0, 0, 1, deg(-style.legIn))), q),
   };
   for (const [side, sign] of [
     ["L", 1],

@@ -20,13 +20,23 @@ const BUST_FORWARD = 0.03;
  * 가슴 한쪽의 반지름 (m, 배수 1). 위는 길고 완만하게(쇄골에서 흘러내리는 경사), 아래는 짧고 둥글게 — 물방울 모양.
  * 처음에 좁은 종 모양(가우스, 반지름 6cm)에 7~8cm 를 밀었더니 원뿔처럼 뾰족했다. 클수록 폭도 넓힌다(BUST_WIDEN).
  */
-const BUST_RADIUS = { x: 0.08, up: 0.13, down: 0.085 };
+/**
+ * 인체 기준 (성형외과 · 인체계측):
+ *  - 흉골 위 패인 곳(쇄골 사이)과 두 꼭지가 거의 정삼각형 — 꼭지 높이 = 쇄골 높이 − 꼭지 사이 거리 × 0.87
+ *  - 꼭지 사이 거리 ≈ 가슴 폭의 0.5 (20cm 넘지 않게)
+ *  - 꼭지를 기준으로 위 45 : 아래 55 (Mallucci) — 윗면은 곧거나 살짝 오목, 아랫면은 볼록, 꼭지는 20° 위로
+ * VRoid 는 다리가 긴 그림체라 키에 대한 비(꼭지 높이 0.71 × 키)는 쓰지 않는다 — 몸통의 기준점(쇄골 · 꼭지)끼리로 잡는다.
+ */
+const BUST_RADIUS = { x: 0.068, up: 0.065, down: 0.08 };
 /** 가슴 꼭지를 가슴 끝 뼈(Bust2)보다 이만큼 아래에 (m) + 클수록 조금 더 처지게(BUST_SAG × (배수-1)) */
 const BUST_DROP = 0.015;
 const BUST_SAG = 0;
 /** 미는 방향의 위쪽 성분 (앞으로 미는 양에 대한 비) — 봉긋하게 위로 */
-const BUST_LIFT = 0.1;
-const BUST_WIDEN = 0.15;
+const BUST_LIFT = 0.15;
+/** 배수 1 넘게 커질 때 반지름을 늘리는 비 — 크게 늘리면 두 쪽이 합쳐져 어깨 폭 전체가 선반처럼 부풀었다(정면) */
+const BUST_WIDEN = 0.1;
+/** 가슴 중심을 가슴 끝 뼈보다 바깥으로 (배) — 가운데에 골이 생기게 */
+const BUST_SPREAD = 1.1;
 /** 윗옷(Tops)은 가슴 꼭지에서 아래로 늘어진다 — 아래쪽으로 이만큼(m)에 걸쳐 서서히 줄어든다 */
 const DRAPE = 0.2;
 const WAIST_PINCH = 0.06;
@@ -102,10 +112,16 @@ export function shapeBody(document, shape) {
   // (기본 공식은 트위스트 샘플에 맞췄는데, 비타에서는 가슴 밑선(1.22m)을 가리켜 꼭지(1.29m)는 거의 안 나왔다)
   // 기본이 tip — 메시 좌표를 세상 좌표로 바꾸고 나니 트위스트도 가슴 꼭지가 Bust2 높이에 있었다 ("chest" 는 옛 공식)
   const useTip = shape.bustAt !== "chest";
+  const clavicle = worldOf(document, "J_Bip_L_Shoulder");
   const tips = useTip ? ["J_Sec_L_Bust2", "J_Sec_R_Bust2"].map((name) => worldOf(document, name)) : [];
   const centres =
     useTip && tips.every(Boolean)
-      ? tips.map(([x, y]) => [x * 0.95, y - BUST_DROP - BUST_SAG * Math.max(0, bust - 1), chest[2]])
+      ? tips.map(([x, y]) => {
+          const cx = x * BUST_SPREAD;
+          // 쇄골 높이(어깨 뼈)에서 정삼각형으로 — 없으면 가슴 끝 뼈 높이
+          const cy = clavicle ? clavicle[1] - 2 * Math.abs(cx) * 0.87 : y - BUST_DROP;
+          return [cx, cy - BUST_SAG * Math.max(0, bust - 1), chest[2]];
+        })
       : [left, right].filter(Boolean).map(([x, y]) => [x * 1.15, chest[1] + (y - chest[1]) * 0.3, chest[2]]);
   const waistY = (hipsBone[1] + chest[1]) / 2;
   const hipY = (hipsBone[1] + upperLeg[1]) / 2 - 0.03;
@@ -139,8 +155,10 @@ export function shapeBody(document, shape) {
         //     갑자기 부풀어 공을 붙인 것처럼 보였다(게임 옆모습)
         // 아래: (1 - r²)^1.5 — 둥글게 차고 밑선에서 부드럽게 접힌다.
         //   위 · 아래 모두 짧은 반지름에 (1-r²)² 를 썼더니 꼭지 밑 3cm 에서 7cm 가 뚝 떨어져 선반처럼 잘려 보였다
-        // 봉긋하게(위로 올린 둥근 모양) — 위도 (1-r²)^1.2 로 차게 둥글리고, 반지름은 너무 길지 않게(13cm)
-        if (r2 < 1) dome = Math.max(dome, y >= cy ? Math.pow(1 - r2, 1.2) : Math.pow(1 - r2, 1.5));
+        // 봉긋하게 — 위 (1-r²)^1.3, 아래 (1-r²)^1.2 로 아래가 조금 더 차게. 위 반지름 9cm — 13cm 는 어깨 높이부터 부풀었다
+        // 위 (1-r²)^2.2 — 꼭지 근처는 둥글고 위로 갈수록 곧다가 살짝 오목하게 가슴벽에 이어진다
+        // 아래 (1-r²)^1.1 — 볼록하게 차고 밑선(유방 아래 주름)에서 접힌다
+        if (r2 < 1) dome = Math.max(dome, y >= cy ? Math.pow(1 - r2, 2.2) : Math.pow(1 - r2, 1.1));
       }
       const w = dome * front * torso * bust * BUST_FORWARD;
       dz += w;

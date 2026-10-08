@@ -20,7 +20,12 @@ const BUST_FORWARD = 0.03;
  * 가슴 한쪽의 반지름 (m, 배수 1). 위는 길고 완만하게(쇄골에서 흘러내리는 경사), 아래는 짧고 둥글게 — 물방울 모양.
  * 처음에 좁은 종 모양(가우스, 반지름 6cm)에 7~8cm 를 밀었더니 원뿔처럼 뾰족했다. 클수록 폭도 넓힌다(BUST_WIDEN).
  */
-const BUST_RADIUS = { x: 0.08, up: 0.11, down: 0.065 };
+const BUST_RADIUS = { x: 0.08, up: 0.13, down: 0.085 };
+/** 가슴 꼭지를 가슴 끝 뼈(Bust2)보다 이만큼 아래에 (m) + 클수록 조금 더 처지게(BUST_SAG × (배수-1)) */
+const BUST_DROP = 0.015;
+const BUST_SAG = 0;
+/** 미는 방향의 위쪽 성분 (앞으로 미는 양에 대한 비) — 봉긋하게 위로 */
+const BUST_LIFT = 0.1;
 const BUST_WIDEN = 0.15;
 /** 윗옷(Tops)은 가슴 꼭지에서 아래로 늘어진다 — 아래쪽으로 이만큼(m)에 걸쳐 서서히 줄어든다 */
 const DRAPE = 0.2;
@@ -100,7 +105,7 @@ export function shapeBody(document, shape) {
   const tips = useTip ? ["J_Sec_L_Bust2", "J_Sec_R_Bust2"].map((name) => worldOf(document, name)) : [];
   const centres =
     useTip && tips.every(Boolean)
-      ? tips.map(([x, y]) => [x * 0.95, y - 0.025, chest[2]])
+      ? tips.map(([x, y]) => [x * 0.95, y - BUST_DROP - BUST_SAG * Math.max(0, bust - 1), chest[2]])
       : [left, right].filter(Boolean).map(([x, y]) => [x * 1.15, chest[1] + (y - chest[1]) * 0.3, chest[2]]);
   const waistY = (hipsBone[1] + chest[1]) / 2;
   const hipY = (hipsBone[1] + upperLeg[1]) / 2 - 0.03;
@@ -130,14 +135,18 @@ export function shapeBody(document, shape) {
         // 윗옷은 가슴 아래로 천이 늘어진다(DRAPE), 아니면 아래는 짧고 둥글게
         const fy = (y - cy) / (y >= cy ? rUp : top ? DRAPE : rDown);
         const r2 = fx * fx + fy * fy;
-        // (1 - r²)² — 가운데가 둥글고 가장자리에서 기울기 0 으로 몸에 이어진다
-        if (r2 < 1) dome = Math.max(dome, (1 - r2) * (1 - r2));
+        // 위: 쇄골 아래에서 꼭지까지 비스듬한 직선에 가까운 S 자(smoothstep(1 - r)) — (1-r²)² 는 쇄골 밑이 수직으로 내려오다
+        //     갑자기 부풀어 공을 붙인 것처럼 보였다(게임 옆모습)
+        // 아래: (1 - r²)^1.5 — 둥글게 차고 밑선에서 부드럽게 접힌다.
+        //   위 · 아래 모두 짧은 반지름에 (1-r²)² 를 썼더니 꼭지 밑 3cm 에서 7cm 가 뚝 떨어져 선반처럼 잘려 보였다
+        // 봉긋하게(위로 올린 둥근 모양) — 위도 (1-r²)^1.2 로 차게 둥글리고, 반지름은 너무 길지 않게(13cm)
+        if (r2 < 1) dome = Math.max(dome, y >= cy ? Math.pow(1 - r2, 1.2) : Math.pow(1 - r2, 1.5));
       }
       const w = dome * front * torso * bust * BUST_FORWARD;
       dz += w;
-      // 살짝 바깥 · 아래로 — 정면으로만 밀면 두 개가 나란히 붙은 공처럼 보였다
+      // 살짝 바깥 · 위로 — 정면으로만 밀면 두 개가 나란히 붙은 공처럼, 아래로 밀면 처져 보였다
       dx += Math.sign(x) * 0.15 * w;
-      dy -= 0.12 * w;
+      dy += BUST_LIFT * w;
     }
 
     if (waist && !top) {

@@ -15,6 +15,7 @@ import sharp from "sharp";
 import { resolve } from "node:path";
 
 import { bakeConstraints, humanoidOf, toVroidRig } from "./retarget.mjs";
+import { buildOutfit } from "./outfit.mjs";
 import { apply, meshToWorld, shapeBody, worldOf } from "./shape.mjs";
 import { readGlb } from "./vrm.mjs";
 
@@ -192,6 +193,9 @@ export async function optimizeModel(input, output, reference, shape = null, stri
   if (shape) console.log(`  체형 굽기: 정점 ${shapeBody(document, shape)} 개`);
   if (strip) console.log(`  옷 벗기기: 옷 메시 ${stripClothes(document)} 개를 빼고 몸 피부를 단색으로`);
   if (swimsuit) console.log(`  원피스 수영복: 그림 칸 ${await dressSwimsuit(document, swimsuit)} 개`);
+  // 게임 옷(인벤토리 상의 · 하의) — 몸에 맞게 굽는다 (outfit.mjs). 이미 티셔츠 · 반바지인 캐릭터는 건너뛴다
+  const outfit = await buildOutfit(document);
+  if (outfit) console.log(`  게임 옷: 상의 면 ${outfit.top} · 하의 면 ${outfit.bottom}`);
   await document.transform(
     dedup(),
     // 빈 끝 뼈도 남긴다 — 게임이 이름으로 찾는 뼈(눈 J_Adj_*_FaceEye 등)가 모델마다 끝 뼈일 수 있다

@@ -107,7 +107,7 @@ for (const id of readdirSync(join(root, "characters")).sort()) {
   const out = join(dist, "characters", id);
   if (!checkOnly) {
     mkdirSync(out, { recursive: true });
-    const rig = await optimizeModel(modelPath, join(out, "game.glb"), REFERENCE, meta.shape ?? null);
+    const rig = await optimizeModel(modelPath, join(out, "game.glb"), REFERENCE, meta.shape ?? null, meta.strip === true);
     if (rig) {
       console.log(`  ${id}: VRoid 뼈대로 바꿈 — 뼈 ${rig.bones} 개, 크기 ×${rig.scale.toFixed(2)}`);
       if (rig.unmatched.length) warn(`VRoid 에 없는 뼈라 동작이 붙지 않습니다: ${rig.unmatched.join(", ")}`);

@@ -136,9 +136,13 @@ export function shapeBody(document, shape) {
    * 자리 p 를 얼마나 미나 — 앞을 보는 정도(front) · 등을 보는 정도(back)는 정점의 면 방향에서 받는다.
    * 미는 양이 자리에 따라 부드럽게 변해야 면 방향(노멀)도 같은 식으로 고칠 수 있다(아래 유한 차분).
    */
-  const field = ([x, y, z], front, back, top) => {
+  const field = ([x, y, z], front, back, top, out = 0) => {
+    // 몸통 — 쉬는 자세(T 자)라 어깨 높이에서는 팔이 몸통 바로 바깥에 있다. 가슴 · 허리만 이 안쪽을 민다
     const torso = 1 - smooth(0.16, 0.22, Math.abs(x));
-    if (torso <= 0) return [0, 0, 0];
+    // 골반 높이에는 팔이 없다 — 골반 바깥 면(몸 중심에서 18~21cm)까지 밀어야 넓어진다.
+    // 처음에 몸통 제한을 같이 걸었더니 골반 2 배에도 폭이 21.3 → 21.4cm 로 거의 그대로였다
+    const pelvis = 1 - smooth(0.26, 0.32, Math.abs(x));
+    if (torso <= 0 && pelvis <= 0) return [0, 0, 0];
     let dx = 0;
     let dy = 0;
     let dz = 0;
@@ -174,11 +178,12 @@ export function shapeBody(document, shape) {
     }
 
     if (hips) {
-      const band = Math.exp(-(((y - hipY) / 0.085) ** 2));
+      const band = Math.exp(-(((y - hipY) / 0.1) ** 2));
       const side = smooth(0.02, 0.09, Math.abs(x));
-      dx += Math.sign(x) * HIP_OUT * band * side * torso * hips;
+      // 옆을 보는 면일수록 옆으로 — 앞 · 뒤 면은 조금만(0.3)
+      dx += Math.sign(x) * HIP_OUT * band * side * (0.3 + 0.7 * out) * pelvis * hips;
       // 엉덩이 뒤쪽 — 뒤를 보는 면만
-      dz -= HIP_BACK * band * back * torso * hips;
+      dz -= HIP_BACK * band * back * pelvis * hips;
     }
     return [dx, dy, dz];
   };
@@ -231,7 +236,9 @@ export function shapeBody(document, shape) {
         // 앞을 보는 면만 가슴으로, 뒤를 보는 면만 엉덩이로 — 겨드랑이 · 옆구리까지 밀리면 혹처럼 붙는다
         const front = smooth(-0.15, 0.45, n[2]);
         const back = smooth(0.15, -0.45, n[2]);
-        const d = field(p, front, back, top);
+        // 바깥(옆)을 보는 정도 — 골반을 옆으로 넓힐 때
+        const out = smooth(0, 0.5, n[0] * Math.sign(p[0]));
+        const d = field(p, front, back, top, out);
         if (!d[0] && !d[1] && !d[2]) continue;
         position.setElement(index, apply(toMesh, [p[0] + d[0], p[1] + d[1], p[2] + d[2]]));
         moved += 1;
@@ -242,7 +249,7 @@ export function shapeBody(document, shape) {
           for (let j = 0; j < 3; j += 1) {
             const q = [...p];
             q[j] += STEP;
-            const dq = field(q, front, back, top);
+            const dq = field(q, front, back, top, out);
             for (let k = 0; k < 3; k += 1) J[k][j] = (dq[k] - d[k]) / STEP;
           }
           normals.setElement(index, applyDir(dirToMesh, bentNormal(J, n)));

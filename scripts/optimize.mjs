@@ -24,7 +24,36 @@ export const TEXTURE_SIZE = 1024;
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 
 /** 돌려주는 것: 뼈대를 바꿨으면 그 결과({ bones, scale, unmatched }), 이미 VRoid 면 null */
-export async function optimizeModel(input, output, reference, shape = null) {
+/**
+ * 옷 벗기기 (meta.json "strip": true) — 몸 구조를 보려는 실험용.
+ * VRoid 옷은 두 가지다: 따로 붙은 옷 메시(재질 이름 끝이 _CLOTH — 원피스 · 신발 …)는 뺀다.
+ * 몸 피부 그림에 칠해진 옷(비타의 바디슈트 · 타이츠 무늬)은 메시가 아니라서, 몸 피부(Body_*_SKIN) 재질의 그림을 떼고 단색 살색으로 — 마네킹처럼.
+ * 얼굴 피부(Face_*_SKIN)는 그대로. 몸 피부는 조명을 받게 바꾼다(굴곡이 보이게).
+ */
+function stripClothes(document) {
+  let removed = 0;
+  for (const mesh of document.getRoot().listMeshes()) {
+    for (const primitive of mesh.listPrimitives()) {
+      if (!/_CLOTH/i.test(primitive.getMaterial()?.getName() ?? "")) continue;
+      mesh.removePrimitive(primitive);
+      primitive.dispose();
+      removed += 1;
+    }
+  }
+  for (const material of document.getRoot().listMaterials()) {
+    if (!/Body_\d+_SKIN/.test(material.getName())) continue;
+    material.setBaseColorTexture(null);
+    // 살색 (sRGB 250 · 222 · 206 → 선형)
+    material.setBaseColorFactor([0.955, 0.73, 0.617, 1]);
+    // VRoid 재질은 조명을 받지 않는다(KHR_materials_unlit) — 단색이면 굴곡이 하나도 안 보여서 몸 피부만 조명을 받게
+    material.setExtension("KHR_materials_unlit", null);
+    material.setMetallicFactor(0);
+    material.setRoughnessFactor(0.75);
+  }
+  return removed;
+}
+
+export async function optimizeModel(input, output, reference, shape = null, strip = false) {
   const document = await io.read(input);
   const json = readGlb(input).json;
   let rig = null;
@@ -46,6 +75,7 @@ export async function optimizeModel(input, output, reference, shape = null) {
   }
   // 체형 굽기 (meta.json 의 shape) — 뼈대를 기준으로 맞춘 뒤라 앞이 +Z 다
   if (shape) console.log(`  체형 굽기: 정점 ${shapeBody(document, shape)} 개`);
+  if (strip) console.log(`  옷 벗기기: 옷 메시 ${stripClothes(document)} 개를 빼고 몸 피부를 단색으로`);
   await document.transform(
     dedup(),
     // 빈 끝 뼈도 남긴다 — 게임이 이름으로 찾는 뼈(눈 J_Adj_*_FaceEye 등)가 모델마다 끝 뼈일 수 있다

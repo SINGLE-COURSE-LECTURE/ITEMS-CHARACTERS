@@ -15,5 +15,12 @@
     "실험",
     "CC0"
   ],
-  "strip": true
+  "strip": true,
+  "swimsuit": {
+    "colorSrgb": [
+      24,
+      32,
+      72
+    ]
+  }
 }

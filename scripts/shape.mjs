@@ -64,7 +64,7 @@ const mat4Inv = (m) => {
   for (let row = 0; row < 3; row += 1) out[12 + row] = -(out[row] * t[0] + out[4 + row] * t[1] + out[8 + row] * t[2]);
   return out;
 };
-const apply = (m, [x, y, z]) => [m[0] * x + m[4] * y + m[8] * z + m[12], m[1] * x + m[5] * y + m[9] * z + m[13], m[2] * x + m[6] * y + m[10] * z + m[14]];
+export const apply = (m, [x, y, z]) => [m[0] * x + m[4] * y + m[8] * z + m[12], m[1] * x + m[5] * y + m[9] * z + m[13], m[2] * x + m[6] * y + m[10] * z + m[14]];
 
 /**
  * 메시 좌표 → 몸(세상) 좌표.
@@ -72,7 +72,7 @@ const apply = (m, [x, y, z]) => [m[0] * x + m[4] * y + m[8] * z + m[12], m[1] * 
  * 뼈대 맞추기가 180° 돌려 세운다. 그대로 밀었더니 가슴이 등에, 엉덩이가 배에 돋았다. 트위스트도 크기가 1.12 배 달랐다.
  * 쉬는 자세 = 묶는 자세라 아무 뼈 하나의 (세상 행렬 × 역바인드 행렬)이 곧 메시 → 세상이다.
  */
-function meshToWorld(document, mesh) {
+export function meshToWorld(document, mesh) {
   for (const node of document.getRoot().listNodes()) {
     if (node.getMesh() !== mesh) continue;
     const skin = node.getSkin();
@@ -86,7 +86,7 @@ function meshToWorld(document, mesh) {
   return [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
 }
 
-function worldOf(document, name) {
+export function worldOf(document, name) {
   const node = document.getRoot().listNodes().find((entry) => entry.getName() === name);
   if (!node) return null;
   const m = node.getWorldMatrix();

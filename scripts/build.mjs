@@ -15,6 +15,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmdirSync, statSync, 
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { dressAll } from "./dress.mjs";
 import { optimizeModel, optimizeThumb } from "./optimize.mjs";
 import { imageBytes, readGlb, REQUIRED_BONES, vrmInfo } from "./vrm.mjs";
 
@@ -143,6 +144,8 @@ for (const line of warnings) console.warn(`경고  ${line}`);
 for (const line of errors) console.error(`오류  ${line}`);
 if (!checkOnly) {
   mkdirSync(dist, { recursive: true });
+  // 기본 옷 — 기본 캐릭터(여)의 티셔츠 · 반바지를 다른 캐릭터에 옮겨 입힌다 (scripts/dress.mjs). 인벤토리 상의 · 하의가 이 옷을 쓴다
+  if (!errors.length) await dressAll();
   writeFileSync(join(dist, "catalog.json"), `${JSON.stringify({ _note: "scripts/build.mjs 가 만든다. 손으로 고치지 않는다.", characters: catalog }, null, 2)}\n`);
   console.log(`캐릭터 ${catalog.length} 개 → dist/catalog.json`);
 }

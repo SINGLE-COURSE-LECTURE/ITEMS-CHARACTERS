@@ -34,6 +34,10 @@ const UNDER = 0.035;
 const SUBDIVIDE = 2;
 /** 펴고 다시 밀기 횟수 */
 const SMOOTH_ROUNDS = 12;
+/** 늘어뜨릴 때 아래로 1m 에 안으로 들어가는 정도 — 0 이면 수직으로 떨어진다 */
+const DRAPE_SLOPE = 0.18;
+/** 늘어뜨리고 펴기 횟수 */
+const DRAPE_ROUNDS = 40;
 const TOP = /(^|_)Tops_/;
 const BOTTOM = /(^|_)Bottoms_/;
 
@@ -152,6 +156,20 @@ export function dressFrom(target, source) {
   const sNode = bodyNode(source);
   const tNode = bodyNode(target);
   if (!sNode || !tNode) return null;
+  // 다시 돌릴 때 — 전에 입힌 옷은 벗기고
+  for (const primitive of tNode.getMesh().listPrimitives()) {
+    const old = primitive.getMaterial();
+    if (!/^ITEMS_/.test(old?.getName() ?? "")) continue;
+    tNode.getMesh().removePrimitive(primitive);
+    primitive.dispose();
+    old.getBaseColorTexture()?.dispose();
+    old.dispose();
+  }
+  for (const material of target.getRoot().listMaterials()) {
+    if (!/^ITEMS_/.test(material.getName())) continue;
+    material.getBaseColorTexture()?.dispose();
+    material.dispose();
+  }
   const sSkin = sNode.getSkin();
   const tSkin = tNode.getSkin();
   const sJoints = sSkin.listJoints();
@@ -337,6 +355,98 @@ export function dressFrom(target, source) {
       });
       world = smoothed;
       pushed = pushOut(touched);
+      weld();
+    }
+
+    // 늘어뜨리기 (티셔츠) — 위만 하면 천이 가슴 모양대로 눌려 속옷 윤곽처럼 턱이 지고, 가슴 밑 · 허리로 말려 들어가 접혔다.
+    // 진짜 티셔츠는 가장 튀어나온 곳(앞은 가슴, 옆은 겨드랑이 밑)에서 거의 곧게 떨어진다.
+    // 몸통을 빙 둘러 방향(각도)마다 겨드랑이 밑 가장 먼 곳을 찾고, 그보다 아래는 그 선에서 DRAPE_SLOPE 보다 안으로 들어가지 않게 편다.
+    if (slot === "top") {
+      const armpitY = tByName.get("J_Bip_L_UpperArm").getWorldMatrix()[13] - 0.06;
+      const hips = tByName.get("J_Bip_C_Hips").getWorldMatrix();
+      const centre = [hips[12], hips[14]];
+      const BINS = 48;
+      const polar = (p) => {
+        const dx = p[0] - centre[0], dz = p[2] - centre[1];
+        return { angle: ((Math.atan2(dx, dz) / (2 * Math.PI)) * BINS + BINS) % BINS, r: Math.hypot(dx, dz) };
+      };
+      const collarY = tByName.get("J_Bip_C_Neck").getWorldMatrix()[13] - 0.025;
+      const torso = (p) => (p[1] < armpitY && Math.abs(p[0] - centre[0]) < 0.24) || (p[1] < collarY && Math.abs(p[0] - centre[0]) < 0.12);
+      // 기준은 몸 피부 — 옷에서 잡았더니 겨드랑이 밑 소매 끝자락이 가장 먼 곳으로 잡혀 치마처럼 퍼졌다.
+      // 겨드랑이 3cm 밑부터 20cm 아래까지(가슴 · 겨드랑이 밑) 몸통 피부의 방향마다 가장 먼 곳 + MARGIN
+      const drape = () => {
+        const apex = Array.from({ length: BINS }, () => ({ r: 0, y: armpitY }));
+        for (const p of skin.points) {
+          if (p[1] > armpitY - 0.03 || p[1] < armpitY - 0.23 || Math.abs(p[0] - centre[0]) > 0.17) continue;
+          const { angle, r } = polar(p);
+          const bin = Math.floor(angle);
+          if (r + MARGIN > apex[bin].r) apex[bin] = { r: r + MARGIN, y: p[1] };
+        }
+        // 쇄골 높이 — 가슴 꼭대기에서 위로는 여기까지 곧은 비탈 (가슴 위가 움푹 꺼졌다 솟아 속옷 윤곽처럼 보였다)
+        const collar = new Array(BINS).fill(0);
+        for (const p of skin.points) {
+          if (Math.abs(p[1] - collarY) > 0.012 || Math.abs(p[0] - centre[0]) > 0.12) continue;
+          const { angle, r } = polar(p);
+          const bin = Math.floor(angle);
+          collar[bin] = Math.max(collar[bin], r + MARGIN);
+        }
+        // 옆 방향끼리 고르게 — 세로 골이 지지 않게
+        const blurred = apex.map((_, i) => {
+          let r = 0, y = 0;
+          for (let k = -2; k <= 2; k += 1) {
+            const a = apex[(i + k + BINS) % BINS];
+            const w = 3 - Math.abs(k);
+            r += a.r * w;
+            y += a.y * w;
+          }
+          let c = 0, cw = 0;
+          for (let k = -2; k <= 2; k += 1) {
+            const value = collar[(i + k + BINS) % BINS];
+            if (!value) continue;
+            c += value * (3 - Math.abs(k));
+            cw += 3 - Math.abs(k);
+          }
+          return { r: r / 9, y: y / 9, collar: cw ? c / cw : 0 };
+        });
+        for (const p of world) {
+          if (!torso(p)) continue;
+          const { angle, r } = polar(p);
+          const i = Math.floor(angle), f = angle - i;
+          const a = blurred[i], b = blurred[(i + 1) % BINS];
+          const apexR = a.r * (1 - f) + b.r * f;
+          const apexY = a.y * (1 - f) + b.y * f;
+          if (!apexR) continue;
+          let minR;
+          if (p[1] >= apexY) {
+            // 위 — 앞쪽 가운데(쇄골 폭 안)만, 쇄골에서 꼭대기까지 곧게
+            const collarR = a.collar * (1 - f) + b.collar * f;
+            if (!collarR || p[1] >= collarY || Math.abs(p[0] - centre[0]) > 0.12) continue;
+            const t = (p[1] - apexY) / (collarY - apexY);
+            minR = apexR + (collarR - apexR) * t;
+          } else {
+            minR = apexR - DRAPE_SLOPE * (apexY - p[1]);
+          }
+          if (r >= minR) continue;
+          const k = minR / (r || 1e-6);
+          p[0] = centre[0] + (p[0] - centre[0]) * k;
+          p[2] = centre[1] + (p[2] - centre[1]) * k;
+        }
+      };
+      const inTorso = world.map((p) => torso(p));
+      for (let round = 0; round < DRAPE_ROUNDS; round += 1) {
+        drape();
+        // 몸통 전체를 고르게 — 밀린 자리만 펴면 경계에 턱이 남았다
+        world = world.map((p, v) => {
+          if (!inTorso[v] || !neighbours[v].size) return p;
+          const avg = [0, 0, 0];
+          for (const n of neighbours[v]) for (let c = 0; c < 3; c += 1) avg[c] += world[n][c] / neighbours[v].size;
+          return p.map((c, k) => c * 0.4 + avg[k] * 0.6);
+        });
+        pushed = pushOut(touched);
+        weld();
+      }
+      drape();
+      pushOut(touched);
       weld();
     }
 

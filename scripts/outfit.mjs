@@ -64,7 +64,22 @@ export async function buildOutfit(document) {
   const inBottom = ([x, y]) => Math.abs(x) < 0.3 && y < hips[1] + 0.06 && y > upperLeg[1] - 0.17;
 
   // 기본 장비(흰 무지 티 · 검은 반바지)는 색 칠하기 없이 그림 색 그대로 쓴다 — 그림을 그 색으로. 다른 상의 · 하의는 이 위에 제 색을 칠한다
-  const plain = (r, g, b) => sharp({ create: { width: 64, height: 64, channels: 4, background: { r, g, b, alpha: 1 } } }).png().toBuffer();
+  // 아주 옅은 천 결(±4) — 한 가지 색 그림은 빌드의 정리(prune)가 그림을 떼고 색 값으로 바꿔 버려 게임이 칠할 그림이 없었다
+  const plain = (r, g, b) => {
+    const size = 64;
+    const data = Buffer.alloc(size * size * 4);
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) {
+        const weave = ((x + y) % 4 < 2 ? 3 : -3) + ((x * 7 + y * 13) % 5) - 2;
+        const at = (y * size + x) * 4;
+        data[at] = Math.max(0, Math.min(255, r + weave));
+        data[at + 1] = Math.max(0, Math.min(255, g + weave));
+        data[at + 2] = Math.max(0, Math.min(255, b + weave));
+        data[at + 3] = 255;
+      }
+    }
+    return sharp(data, { raw: { width: size, height: size, channels: 4 } }).png().toBuffer();
+  };
   const white = await plain(242, 242, 242);
   const black = await plain(38, 38, 43);
   // 상의 · 하의 재질이 똑같으면 빌드의 중복 정리(dedup)가 하나로 합쳐 게임이 따로 켜고 끌 수 없었다 — 거칠기를 달리 둔다

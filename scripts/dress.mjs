@@ -40,10 +40,10 @@ const SUBDIVIDE = 2;
 /** 펴고 다시 밀기 횟수 */
 const SMOOTH_ROUNDS = 12;
 /** 늘어뜨릴 때 아래로 1m 에 안으로 들어가는 정도 — 0 이면 수직으로 떨어진다 */
-const DRAPE_SLOPE = 0.9;
+const DRAPE_SLOPE = 0.12;
 /** 기본 옷 여유를 얼마나 옮기나 — 가슴 높이 · 허리 아래 (여성형은 몸에 붙게) */
-const FIT_CHEST = 0.55;
-const FIT_WAIST = 0.12;
+const FIT_CHEST = 0.9;
+const FIT_WAIST = 0.3;
 const FIT_SHORTS = 0.4;
 const FIT_SLEEVE = 0.5;
 const FIT_SHOULDER = 0.4;
@@ -60,7 +60,7 @@ const RAY_WIDTH = 0.012;
 /** 옷 가중치에 몸 피부 가중치를 섞는 비율 */
 const SKIN_WEIGHT = 0.85;
 /** 가중치를 이웃끼리 고르게 펴는 횟수 */
-const WEIGHT_SMOOTH = 8;
+const WEIGHT_SMOOTH = 20;
 const RIM_SLOPE = 0.3;
 const TOP = /(^|_)Tops_/;
 const BOTTOM = /(^|_)Bottoms_/;
@@ -731,6 +731,26 @@ export function dressFrom(target, source) {
           const bin = Math.floor(angle);
           collar[bin] = Math.max(collar[bin], r + MARGIN);
         }
+        // 앞쪽은 지금 티셔츠의 가슴 높이 앞면도 본다 — 피부 기준만 보면 가슴 위로 밀려 나온 천보다 안쪽이라 가슴 밑에 턱이 졌다
+        for (const p of world) {
+          if (p[1] > armpitY - 0.03 || p[1] < armpitY - 0.23 || Math.abs(p[0] - centre[0]) > 0.15) continue;
+          const { angle, r } = polar(p);
+          const bin = Math.floor(angle);
+          const front = Math.abs(angle - (angle > BINS / 2 ? BINS : 0)) < BINS / 6;
+          if (front && r > apex[bin].r) apex[bin] = { r, y: p[1] };
+        }
+        // 앞쪽은 가슴 사이를 건너간다 — 이웃 방향(±8)의 반지름을 이 방향으로 비춘 값(r · cos Δ)까지 메운다.
+        // 방향마다 피부를 따라가니 천이 가슴 하나하나를 감싸 가슴이 도드라졌다(기본 캐릭터 티셔츠는 가슴 앞을 평평하게 건너간다)
+        const bridged = apex.map((own, bin) => {
+          let best = own;
+          for (let k = -8; k <= 8; k += 1) {
+            const other = apex[(bin + k + BINS) % BINS];
+            const r = other.r * Math.cos((k * 2 * Math.PI) / BINS);
+            if (r > best.r) best = { r, y: other.y };
+          }
+          return best;
+        });
+        apex.splice(0, BINS, ...bridged);
         // 옆 방향끼리 고르게 — 세로 골이 지지 않게
         const blurred = apex.map((_, i) => {
           let r = 0, y = 0;
@@ -828,6 +848,7 @@ export function dressFrom(target, source) {
           if (need > 0) for (let c = 0; c < 3; c += 1) p[c] += dir[c] * need;
         }
         weld();
+        drape();
         // 밀린 자리 둘레를 살짝 고르게
         world = world.map((p, v) => {
           if (!torso(p) || !neighbours[v].size) return p;
@@ -835,6 +856,20 @@ export function dressFrom(target, source) {
           for (const n of neighbours[v]) for (let c = 0; c < 3; c += 1) avg[c] += world[n][c] / neighbours[v].size;
           return p.map((c, k) => c * 0.75 + avg[k] * 0.25);
         });
+      }
+      drape();
+      // 가슴 밑 — 늘어뜨리기가 시작되는 높이에 가로 주름이 졌다. 앞 몸통만 펴고 · 늘어뜨리고 · 밀기를 몇 번
+      const frontTorso = (p) => torso(p) && p[2] > centre[1] && p[1] > armpitY - 0.35;
+      for (let round = 0; round < 8; round += 1) {
+        world = world.map((p, v) => {
+          if (!frontTorso(p) || !neighbours[v].size) return p;
+          const avg = [0, 0, 0];
+          for (const n of neighbours[v]) for (let c = 0; c < 3; c += 1) avg[c] += world[n][c] / neighbours[v].size;
+          return p.map((c, k) => c * 0.5 + avg[k] * 0.5);
+        });
+        drape();
+        pushOut(touched);
+        weld();
       }
     }
 
@@ -874,12 +909,24 @@ export function dressFrom(target, source) {
     // 뼈 가중치는 바로 밑 몸 피부 것을 섞어 쓴다 — 기본 캐릭터 옷 가중치를 그대로 쓰면 몸과 다르게 휘어
     // 자세를 잡으면(서기 동작) 가슴 가운데 피부가 옷을 뚫고 나왔다. 정점마다 가까운 피부 것을 따로 쓰면 휠 때 천이 우글거려
     // 이웃끼리 몇 번 고르게 편다
+    // 가슴 보조 뼈(J_Sec_*Bust*)는 윗가슴 뼈로 — 옷이 가슴 뼈를 따라가면 가슴 밑 경계에 가로 주름이 졌다
+    const upperChestIndex = tIndex.get("J_Bip_C_UpperChest");
+    const bustIndexes = new Set(tJoints.map((j, i) => (/Bust/.test(j.getName()) ? i : -1)).filter((i) => i >= 0));
+    const noBust = (map) => {
+      if (upperChestIndex === undefined) return map;
+      const out = new Map();
+      for (const [j, w] of map) {
+        const k = bustIndexes.has(j) ? upperChestIndex : j;
+        out.set(k, (out.get(k) ?? 0) + w);
+      }
+      return out;
+    };
     let vertexWeights = world.map((p, v) => {
       const blended = new Map();
       for (const [j, w] of weightMaps[v]) blended.set(j, w * (1 - SKIN_WEIGHT));
       const nearestSkin = [];
       for (const i of around(p)) if (skin.weights[i]) nearestSkin.push([Math.hypot(...sub(skin.points[i], p)), i]);
-      if (!nearestSkin.length) return weightMaps[v];
+      if (!nearestSkin.length) return noBust(weightMaps[v]);
       nearestSkin.sort((x, y) => x[0] - y[0]);
       const picked = nearestSkin.slice(0, 6);
       const inv = picked.map(([d]) => 1 / Math.max(d, 0.004));
@@ -887,7 +934,7 @@ export function dressFrom(target, source) {
       picked.forEach(([, i], n) => {
         for (const [j, w] of skin.weights[i]) blended.set(j, (blended.get(j) ?? 0) + w * SKIN_WEIGHT * (inv[n] / invSum));
       });
-      return blended;
+      return noBust(blended);
     });
     for (let round = 0; round < WEIGHT_SMOOTH; round += 1) {
       vertexWeights = vertexWeights.map((own, v) => {

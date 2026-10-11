@@ -53,6 +53,8 @@ const FIT_SMOOTH = 6;
 const DRAPE_ROUNDS = 40;
 /** 반바지 윗단 위로 티셔츠를 비스듬히 덮는 높이 · 기울기 */
 const RIM_RISE = 0.08;
+/** 엉덩이 꼭대기에서 위로 1m 에 안으로 들어가는 정도 */
+const BACK_SLOPE = 0.6;
 const RIM_SLOPE = 0.3;
 const TOP = /(^|_)Tops_/;
 const BOTTOM = /(^|_)Bottoms_/;
@@ -672,6 +674,7 @@ export function dressFrom(target, source) {
         const { angle, r } = polar(p);
         rim[Math.floor(angle)] = Math.max(rim[Math.floor(angle)], r);
       }
+      let lastButt = null;
       const drape = () => {
         const apex = Array.from({ length: BINS }, () => ({ r: 0, y: armpitY }));
         for (const p of skin.points) {
@@ -681,6 +684,26 @@ export function dressFrom(target, source) {
           if (r + MARGIN > apex[bin].r) apex[bin] = { r: r + MARGIN, y: p[1] };
         }
         // 쇄골 높이 — 가슴 꼭대기에서 위로는 여기까지 곧은 비탈 (가슴 위가 움푹 꺼졌다 솟아 속옷 윤곽처럼 보였다)
+        // 엉덩이 — 허리 아래 몸통 피부의 방향마다 가장 먼 곳. 뒤쪽은 여기서 곧게 떨어진다
+        // (허리에 붙이고 나니 뒤 밑단이 엉덩이 아래로 말려 들어가 굴곡이 그대로 드러났다)
+        const butt = Array.from({ length: BINS }, () => ({ r: 0, y: 0 }));
+        for (const p of skin.points) {
+          if (p[1] > tRadial.waistY || p[1] < tRadial.crotchY || Math.abs(p[0] - centre[0]) > 0.2) continue;
+          const { angle, r } = polar(p);
+          const bin = Math.floor(angle);
+          if (r + MARGIN > butt[bin].r) butt[bin] = { r: r + MARGIN, y: p[1] };
+        }
+        // 천은 엉덩이 사이 골을 건너간다 — 옆 방향(±4)의 반지름을 이 방향으로 비춘 값(r · cos Δ)까지 메운다.
+        // 방향마다 피부를 따라가니 골까지 따라 들어가 엉덩이 두 굴곡이 그대로 드러났다
+        lastButt = butt.map((own, bin) => {
+          let best = own;
+          for (let k = -4; k <= 4; k += 1) {
+            const other = butt[(bin + k + BINS) % BINS];
+            const r = other.r * Math.cos((k * 2 * Math.PI) / BINS);
+            if (r > best.r) best = { r, y: other.y };
+          }
+          return best;
+        });
         const collar = new Array(BINS).fill(0);
         for (const p of skin.points) {
           if (Math.abs(p[1] - collarY) > 0.012 || Math.abs(p[0] - centre[0]) > 0.12) continue;
@@ -731,6 +754,15 @@ export function dressFrom(target, source) {
             const rimR = rim[i] * (1 - f) + rim[(i + 1) % BINS] * f;
             if (rimR) minR = Math.max(minR, rimR + GARMENT_MARGIN - Math.max(0, p[1] - rimY) * RIM_SLOPE);
           }
+          // 뒤쪽(±60°) 엉덩이 꼭대기 아래 — 곧게
+          const back = Math.abs(angle - BINS / 2) < BINS / 6;
+          if (back && lastButt) {
+            const ba = lastButt[i], bb = lastButt[(i + 1) % BINS];
+            const buttR = ba.r * (1 - f) + bb.r * f;
+            const buttY = Math.max(ba.y, bb.y);
+            // 꼭대기 아래는 곧게, 위(허리까지)는 비스듬히 — 엉덩이 꼭대기가 밑단 높이라 아래만 잡으면 걸리는 데가 없었다
+            if (buttR) minR = Math.max(minR, p[1] < buttY ? buttR : buttR - BACK_SLOPE * (p[1] - buttY));
+          }
           if (!minR || r >= minR) continue;
           const k = minR / (r || 1e-6);
           p[0] = centre[0] + (p[0] - centre[0]) * k;
@@ -751,8 +783,11 @@ export function dressFrom(target, source) {
         weld();
       }
       drape();
-      pushOut(touched);
-      weld();
+      // 마지막 밀기를 몇 번 — 한 번으로는 가슴 밑 · 허리 옆에 피부가 뚫고 나온 작은 구멍이 남았다
+      for (let round = 0; round < 4; round += 1) {
+        pushOut(touched);
+        weld();
+      }
     }
 
     // 반바지 허리 집어넣기 — 티셔츠에 덮이는 곳은 티셔츠 안쪽(TUCK)으로. 티셔츠 면 방향이 바깥(몸 중심에서 멀어지는 쪽)이 되게 맞춰 본다

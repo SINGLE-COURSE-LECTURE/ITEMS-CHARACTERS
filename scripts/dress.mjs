@@ -27,6 +27,11 @@ const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 export const DRESS_SOURCE = "pixiv-twist";
 /** 피부 바깥으로 띄우는 최소 거리 (m) */
 const MARGIN = 0.009;
+/** 반바지는 피부에서 · 티셔츠는 반바지 위에서 이만큼 */
+const BOTTOM_MARGIN = 0.004;
+const GARMENT_MARGIN = 0.003;
+/** 티셔츠 안쪽으로 집어넣는 깊이 */
+const TUCK = 0.004;
 /** 둘레 피부를 살피는 반지름 (m) · 그중 옷 정점 바로 밑(옆으로 이만큼 안)인 것만 */
 const REACH = 0.045;
 const UNDER = 0.035;
@@ -38,6 +43,9 @@ const SMOOTH_ROUNDS = 12;
 const DRAPE_SLOPE = 0.18;
 /** 늘어뜨리고 펴기 횟수 */
 const DRAPE_ROUNDS = 40;
+/** 반바지 윗단 위로 티셔츠를 비스듬히 덮는 높이 · 기울기 */
+const RIM_RISE = 0.08;
+const RIM_SLOPE = 0.3;
 const TOP = /(^|_)Tops_/;
 const BOTTOM = /(^|_)Bottoms_/;
 
@@ -151,6 +159,44 @@ export function wearsTeeAndShorts(document) {
   return names.some((n) => TOP.test(n) && !/^ITEMS_/.test(n)) && names.some((n) => BOTTOM.test(n) && !/^ITEMS_/.test(n));
 }
 
+/**
+ * 몸통 단면 지도 — 높이(1cm)와 방향(BINS)마다 몸 피부가 중심에서 얼마나 먼가.
+ * 옷과 몸 사이의 여유를 옮길 때 쓴다(옷의 절대 크기가 아니라 몸에서 띄운 만큼을 옮긴다).
+ */
+const RADIAL_BINS = 48;
+function radialMap(document, skinPoints) {
+  const by = (name) => document.getRoot().listNodes().find((n) => n.getName() === name)?.getWorldMatrix();
+  const hips = by("J_Bip_C_Hips");
+  const armpitY = by("J_Bip_L_UpperArm")[13] - 0.06;
+  const centre = [hips[12], hips[14]];
+  const grid = new Map();
+  const polar = (x, z) => {
+    const dx = x - centre[0], dz = z - centre[1];
+    return { bin: Math.floor((((Math.atan2(dx, dz) / (2 * Math.PI)) * RADIAL_BINS) + RADIAL_BINS) % RADIAL_BINS), r: Math.hypot(dx, dz) };
+  };
+  for (const [x, y, z] of skinPoints) {
+    // 팔은 빼고 몸통만 — 겨드랑이 위(어깨 높이)는 팔이 옆으로 뻗어 있어 더 좁게
+    if (Math.abs(x - centre[0]) > (y < armpitY ? 0.17 : 0.1)) continue;
+    const { bin, r } = polar(x, z);
+    const key = `${Math.round(y * 100)},${bin}`;
+    if (r > (grid.get(key) ?? 0)) grid.set(key, r);
+  }
+  const lookup = (x, y, z) => {
+    const { bin, r } = polar(x, z);
+    const yy = Math.round(y * 100);
+    for (let reach = 0; reach <= 3; reach += 1) {
+      let best = 0, n = 0;
+      for (let dy = -reach; dy <= reach; dy += 1) for (let db = -reach; db <= reach; db += 1) {
+        const value = grid.get(`${yy + dy},${(bin + db + RADIAL_BINS) % RADIAL_BINS}`);
+        if (value) (best += value), (n += 1);
+      }
+      if (n) return { R: best / n, r, centre };
+    }
+    return { R: 0, r, centre };
+  };
+  return { lookup, armpitY, centre, waistY: hips[13] + 0.08 };
+}
+
 /** 대상 문서에 기준 문서의 티셔츠 · 반바지를 옮겨 입힌다. 돌려주는 것: { top, bottom } 정점 수 */
 export function dressFrom(target, source) {
   const sNode = bodyNode(source);
@@ -193,10 +239,18 @@ export function dressFrom(target, source) {
   const sToWorld = meshToWorld(source, sNode.getMesh());
   const tToMesh = inv(meshToWorld(target, tNode.getMesh()));
   const skin = skinOf(target);
-  const around = aroundFinder(skin);
+  // 부딪힐 것 — 처음엔 몸 피부, 반바지를 입힌 뒤엔 반바지도 (티셔츠가 반바지 허리를 덮게)
+  let collide = skin;
+  /** 먼저 입힌 티셔츠 (반바지를 그 안으로 집어넣는다) */
+  let tee = null;
+  let around = aroundFinder(skin);
+  const sRadial = radialMap(source, skinOf(source).points);
+  const tRadial = radialMap(target, skin.points);
   const counts = {};
 
   for (const [slot, pattern, name, roughness] of [
+    // 티셔츠 먼저(몸 피부만 보고), 반바지는 그 다음 — 티셔츠에 덮이는 반바지 허리는 티셔츠 안으로 집어넣는다.
+    // 반바지를 먼저 입히고 티셔츠를 그 위로 밀었더니 반바지 윗단에서 티셔츠가 계단처럼 접혀 허리에 가로 턱이 졌다
     ["top", TOP, "ITEMS_Tops_00_CLOTH", 0.85],
     ["bottom", BOTTOM, "ITEMS_Bottoms_00_CLOTH", 0.8],
   ]) {
@@ -229,7 +283,25 @@ export function dressFrom(target, source) {
         const index = jointMove[jt[k]].index;
         map.set(index, (map.get(index) ?? 0) + wt[k]);
       }
-      world.push(total ? q.map((c) => c / total) : p);
+      let moved = total ? q.map((c) => c / total) : p;
+      // 1-1. 여유 옮기기 (티셔츠 몸통) — 뼈만 따라 옮기면 기본 캐릭터 옷의 절대 크기가 그대로라 몸통이 작은 캐릭터에겐 상자처럼 컸다.
+      //      기준 몸에서 띄운 만큼(여유)을 재서 대상 몸에서 그만큼 띄운다 — 몸이 작으면 옷도 줄고, 크면 는다
+      if (slot === "top") {
+        const torsoSource = p[1] < sRadial.armpitY + 0.08 && Math.abs(p[0] - sRadial.centre[0]) < (p[1] < sRadial.armpitY ? 0.26 : 0.1);
+        if (torsoSource) {
+          // 허리 아래(골반 · 허벅지 높이 — 밑단)는 단면이 다리로 갈라져 맞지 않는다 — 허리 높이의 단면을 이어 쓴다.
+          // (허리 아래를 원래 크기로 돌렸더니 그 경계에 가로 턱이 졌다)
+          const below = p[1] < sRadial.waistY;
+          const src = sRadial.lookup(p[0], below ? sRadial.waistY : p[1], p[2]);
+          const dst = tRadial.lookup(moved[0], below ? tRadial.waistY : moved[1], moved[2]);
+          if (src.R && dst.R && dst.r > 1e-4) {
+            const gap = Math.max(MARGIN, src.r - src.R);
+            const k = (dst.R + gap) / dst.r;
+            moved = [dst.centre[0] + (moved[0] - dst.centre[0]) * k, moved[1], dst.centre[1] + (moved[2] - dst.centre[1]) * k];
+          }
+        }
+      }
+      world.push(moved);
       uvs.push([...uv.getElement(v, ut)]);
       weightMaps.push(map);
     }
@@ -296,8 +368,8 @@ export function dressFrom(target, source) {
         let need = 0;
         const dir = [0, 0, 0];
         for (const i of around(world[v])) {
-          const offset = sub(world[v], skin.points[i]);
-          const n = skin.normals[i];
+          const offset = sub(world[v], collide.points[i]);
+          const n = collide.normals[i];
           const d = dot(offset, n);
           // 몸 반대편(등 · 옆구리 너머)은 건너뛴다 — 다만 옷 정점과 같은 쪽을 보는 피부(가슴 앞면이 앞을 보는 옷 정점 밑)면
           // 깊이 묻혀도(큰 가슴은 기본 옷보다 5cm 더 나온다) 민다
@@ -306,7 +378,9 @@ export function dressFrom(target, source) {
           if (d < (sameSide ? -0.09 : -0.03)) continue;
           const lateral = Math.hypot(offset[0] - n[0] * d, offset[1] - n[1] * d, offset[2] - n[2] * d);
           if (lateral > UNDER) continue;
-          const want = MARGIN - d;
+          // 반바지 위로는 얇게 — 피부 9mm + 반바지 위 9mm 면 허리에 턱이 졌다
+          const margin = i >= skin.points.length ? GARMENT_MARGIN : slot === "bottom" ? BOTTOM_MARGIN : MARGIN;
+          const want = margin - d;
           if (want <= 0) continue;
           need = Math.max(need, want);
           for (let c = 0; c < 3; c += 1) dir[c] += n[c] * want;
@@ -315,8 +389,8 @@ export function dressFrom(target, source) {
         if (slot === "top" && world[v][2] > axisZ + 0.03) {
           let front = -Infinity;
           for (const i of around(world[v])) {
-            const p = skin.points[i];
-            if (Math.abs(p[0] - world[v][0]) < 0.02 && Math.abs(p[1] - world[v][1]) < 0.015 && skin.normals[i][2] > -0.2) front = Math.max(front, p[2]);
+            const p = collide.points[i];
+            if (Math.abs(p[0] - world[v][0]) < 0.02 && Math.abs(p[1] - world[v][1]) < 0.015 && collide.normals[i][2] > -0.2) front = Math.max(front, p[2]);
           }
           const want = front + MARGIN - world[v][2];
           if (want > need) {
@@ -374,6 +448,15 @@ export function dressFrom(target, source) {
       const torso = (p) => (p[1] < armpitY && Math.abs(p[0] - centre[0]) < 0.24) || (p[1] < collarY && Math.abs(p[0] - centre[0]) < 0.12);
       // 기준은 몸 피부 — 옷에서 잡았더니 겨드랑이 밑 소매 끝자락이 가장 먼 곳으로 잡혀 치마처럼 퍼졌다.
       // 겨드랑이 3cm 밑부터 20cm 아래까지(가슴 · 겨드랑이 밑) 몸통 피부의 방향마다 가장 먼 곳 + MARGIN
+      // 반바지 윗단 — 높이와 방향마다 바깥 반지름
+      const shorts = [];
+      const rimY = shorts.length ? Math.max(...shorts.filter((p) => Math.abs(p[0] - centre[0]) < 0.2).map((p) => p[1])) : 0;
+      const rim = shorts.length ? new Array(BINS).fill(0) : null;
+      if (rim) for (const p of shorts) {
+        if (p[1] < rimY - 0.025) continue;
+        const { angle, r } = polar(p);
+        rim[Math.floor(angle)] = Math.max(rim[Math.floor(angle)], r);
+      }
       const drape = () => {
         const apex = Array.from({ length: BINS }, () => ({ r: 0, y: armpitY }));
         for (const p of skin.points) {
@@ -415,18 +498,25 @@ export function dressFrom(target, source) {
           const a = blurred[i], b = blurred[(i + 1) % BINS];
           const apexR = a.r * (1 - f) + b.r * f;
           const apexY = a.y * (1 - f) + b.y * f;
-          if (!apexR) continue;
-          let minR;
-          if (p[1] >= apexY) {
+          let minR = 0;
+          if (apexR && p[1] >= apexY) {
             // 위 — 앞쪽 가운데(쇄골 폭 안)만, 쇄골에서 꼭대기까지 곧게
             const collarR = a.collar * (1 - f) + b.collar * f;
-            if (!collarR || p[1] >= collarY || Math.abs(p[0] - centre[0]) > 0.12) continue;
-            const t = (p[1] - apexY) / (collarY - apexY);
-            minR = apexR + (collarR - apexR) * t;
-          } else {
-            minR = apexR - DRAPE_SLOPE * (apexY - p[1]);
+            if (collarR && p[1] < collarY && Math.abs(p[0] - centre[0]) <= 0.12) {
+              const t = (p[1] - apexY) / (collarY - apexY);
+              minR = apexR + (collarR - apexR) * t;
+            }
+          } else if (apexR) {
+            // 아래 — 앞쪽(±60°)만. 옆 · 뒤까지 늘어뜨렸더니 옷이 사다리꼴로 부풀었다(옆 · 뒤는 여유 옮기기로 몸을 따른다)
+            const front = Math.abs(angle - (angle > BINS / 2 ? BINS : 0)) < BINS / 6;
+            if (front) minR = apexR - DRAPE_SLOPE * (apexY - p[1]);
           }
-          if (r >= minR) continue;
+          // 반바지 윗단 — 그 위 RIM_RISE 까지는 비스듬히 덮는다. 윗단 바로 위에서 몸 쪽으로 꺾여 허리에 가로 턱이 졌다
+          if (rim && p[1] > rimY - 0.03 && p[1] < rimY + RIM_RISE) {
+            const rimR = rim[i] * (1 - f) + rim[(i + 1) % BINS] * f;
+            if (rimR) minR = Math.max(minR, rimR + GARMENT_MARGIN - Math.max(0, p[1] - rimY) * RIM_SLOPE);
+          }
+          if (!minR || r >= minR) continue;
           const k = minR / (r || 1e-6);
           p[0] = centre[0] + (p[0] - centre[0]) * k;
           p[2] = centre[1] + (p[2] - centre[1]) * k;
@@ -448,6 +538,28 @@ export function dressFrom(target, source) {
       drape();
       pushOut(touched);
       weld();
+    }
+
+    // 반바지 허리 집어넣기 — 티셔츠에 덮이는 곳은 티셔츠 안쪽(TUCK)으로. 티셔츠 면 방향이 바깥(몸 중심에서 멀어지는 쪽)이 되게 맞춰 본다
+    if (slot === "bottom" && tee) {
+      const near = aroundFinder(tee);
+      const hips = tByName.get("J_Bip_C_Hips").getWorldMatrix();
+      for (let v = 0; v < count; v += 1) {
+        let worst = 0;
+        let dir = null;
+        for (const i of near(world[v])) {
+          let n = tee.normals[i];
+          const out = [tee.points[i][0] - hips[12], 0, tee.points[i][2] - hips[14]];
+          if (dot(n, out) < 0) n = n.map((c) => -c);
+          const offset = sub(world[v], tee.points[i]);
+          const d = dot(offset, n);
+          const lateral = Math.hypot(offset[0] - n[0] * d, offset[1] - n[1] * d, offset[2] - n[2] * d);
+          if (lateral > 0.02 || d < -0.04) continue;
+          const want = d + TUCK;
+          if (want > worst) (worst = want), (dir = n);
+        }
+        if (dir) for (let c = 0; c < 3; c += 1) world[v][c] -= dir[c] * worst;
+      }
     }
 
     const out = new Float32Array(count * 3);
@@ -488,6 +600,16 @@ export function dressFrom(target, source) {
       .setAttribute("WEIGHTS_0", target.createAccessor().setType("VEC4").setArray(outWeights).setBuffer(buffer))
       .setIndices(target.createAccessor().setType("SCALAR").setArray(new Uint32Array(triangles)).setBuffer(buffer));
     tNode.getMesh().addPrimitive(copy);
+    if (slot === "top") {
+      // 티셔츠 안쪽 면 — 반바지를 집어넣을 때 쓴다
+      const normals = world.map(() => [0, 0, 0]);
+      for (let i = 0; i < triangles.length; i += 3) {
+        const [a, b, c] = [triangles[i], triangles[i + 1], triangles[i + 2]];
+        const n = cross(sub(world[b], world[a]), sub(world[c], world[a]));
+        for (const v of [a, b, c]) for (let k = 0; k < 3; k += 1) normals[v][k] += n[k];
+      }
+      tee = { points: world, normals: normals.map(norm) };
+    }
     counts[slot] = { vertices: count, pushed };
   }
   return counts;

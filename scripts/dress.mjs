@@ -183,10 +183,13 @@ function nearestFinder({ points }) {
 const bodyNode = (document) =>
   document.getRoot().listNodes().find((node) => node.getSkin() && node.getMesh()?.listPrimitives().some((p) => /Body_\d*_?SKIN|Body_00_SKIN/.test(p.getMaterial()?.getName() ?? "")));
 
-/** 이미 티셔츠 · 반바지를 입은 캐릭터 */
+/**
+ * 이미 티셔츠 · 반바지를 입은 캐릭터 — VRoid 기본 옷(N00_…) 차림.
+ * 이름에 Tops_ · Bottoms_ 가 있는지만 보면 교복 · 조끼(M00_ · F00_)도 티셔츠로 쳐서 게임 옷을 못 입혔다.
+ */
 export function wearsTeeAndShorts(document) {
   const names = document.getRoot().listMaterials().map((m) => m.getName());
-  return names.some((n) => TOP.test(n) && !/^ITEMS_/.test(n)) && names.some((n) => BOTTOM.test(n) && !/^ITEMS_/.test(n));
+  return names.some((n) => TOP.test(n) && /^N00_/.test(n)) && names.some((n) => BOTTOM.test(n) && /^N00_/.test(n));
 }
 
 /**

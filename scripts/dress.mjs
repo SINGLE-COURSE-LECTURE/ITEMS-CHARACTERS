@@ -55,6 +55,12 @@ const DRAPE_ROUNDS = 40;
 const RIM_RISE = 0.08;
 /** 엉덩이 꼭대기에서 위로 1m 에 안으로 들어가는 정도 */
 const BACK_SLOPE = 0.6;
+/** 바깥으로 본 줄의 굵기 (m) */
+const RAY_WIDTH = 0.012;
+/** 옷 가중치에 몸 피부 가중치를 섞는 비율 */
+const SKIN_WEIGHT = 0.85;
+/** 가중치를 이웃끼리 고르게 펴는 횟수 */
+const WEIGHT_SMOOTH = 8;
 const RIM_SLOPE = 0.3;
 const TOP = /(^|_)Tops_/;
 const BOTTOM = /(^|_)Bottoms_/;
@@ -82,9 +88,11 @@ const norm = (a) => {
 };
 
 /** 몸 피부(얼굴 빼고) 정점 — 세상 좌표와 면에서 셈한 방향 */
-function skinOf(document) {
+function skinOf(document, weightsOf = null) {
   const points = [];
   const normals = [];
+  /** 몸 메시(weightsOf)의 피부 정점이면 뼈 가중치 (뼈 번호 → 가중치) */
+  const weights = [];
   for (const mesh of document.getRoot().listMeshes()) {
     const toWorld = meshToWorld(document, mesh);
     for (const primitive of mesh.listPrimitives()) {
@@ -92,10 +100,21 @@ function skinOf(document) {
       if (!/_SKIN/.test(name) || /Face/.test(name)) continue;
       const position = primitive.getAttribute("POSITION");
       const indices = primitive.getIndices();
+      const joints = mesh === weightsOf ? primitive.getAttribute("JOINTS_0") : null;
+      const weightAttr = mesh === weightsOf ? primitive.getAttribute("WEIGHTS_0") : null;
       const world = new Map();
-      const tmp = [];
+      const tmp = [], jt = [], wt = [];
       const at = (v) => {
-        if (!world.has(v)) world.set(v, { p: apply(toWorld, position.getElement(v, tmp)), n: [0, 0, 0] });
+        if (!world.has(v)) {
+          let w = null;
+          if (joints && weightAttr) {
+            joints.getElement(v, jt);
+            weightAttr.getElement(v, wt);
+            w = new Map();
+            for (let k = 0; k < 4; k += 1) if (wt[k]) w.set(jt[k], (w.get(jt[k]) ?? 0) + wt[k]);
+          }
+          world.set(v, { p: apply(toWorld, position.getElement(v, tmp)), n: [0, 0, 0], w });
+        }
         return world.get(v);
       };
       for (let i = 0; i < indices.getCount(); i += 3) {
@@ -103,13 +122,14 @@ function skinOf(document) {
         const n = cross(sub(b.p, a.p), sub(c.p, a.p));
         for (const v of [a, b, c]) for (let k = 0; k < 3; k += 1) v.n[k] += n[k];
       }
-      for (const { p, n } of world.values()) {
+      for (const { p, n, w } of world.values()) {
         points.push(p);
         normals.push(norm(n));
+        weights.push(w);
       }
     }
   }
-  return { points, normals };
+  return { points, normals, weights };
 }
 
 /** 둘레(REACH) 안의 피부 정점들 */
@@ -357,7 +377,7 @@ export function dressFrom(target, source) {
 
   const sToWorld = meshToWorld(source, sNode.getMesh());
   const tToMesh = inv(meshToWorld(target, tNode.getMesh()));
-  const skin = skinOf(target);
+  const skin = skinOf(target, tNode.getMesh());
   // 부딪힐 것 — 처음엔 몸 피부, 반바지를 입힌 뒤엔 반바지도 (티셔츠가 반바지 허리를 덮게)
   let collide = skin;
   /** 먼저 입힌 티셔츠 (반바지를 그 안으로 집어넣는다) */
@@ -788,6 +808,34 @@ export function dressFrom(target, source) {
         pushOut(touched);
         weld();
       }
+      // 마지막 — 몸통 축에서 바깥(가로)으로 본 피부보다 앞에. 피부 면 방향으로 밀면 아래를 보는 가슴 밑면을 못 잡아
+      // 처진 가슴(비비) 밑에 살이 비쳤다
+      const near = aroundFinder(skin);
+      for (let round = 0; round < 3; round += 1) {
+        for (let v = 0; v < count; v += 1) {
+          const p = world[v];
+          if (!torso(p)) continue;
+          const dir = norm([p[0] - centre[0], 0, p[2] - centre[1]]);
+          let need = 0;
+          for (const i of near(p)) {
+            const offset = sub(skin.points[i], p);
+            const d = dot(offset, dir);
+            if (d < -0.03) continue;
+            const lateral = Math.hypot(offset[0] - dir[0] * d, offset[1], offset[2] - dir[2] * d);
+            if (lateral > RAY_WIDTH) continue;
+            need = Math.max(need, d + MARGIN);
+          }
+          if (need > 0) for (let c = 0; c < 3; c += 1) p[c] += dir[c] * need;
+        }
+        weld();
+        // 밀린 자리 둘레를 살짝 고르게
+        world = world.map((p, v) => {
+          if (!torso(p) || !neighbours[v].size) return p;
+          const avg = [0, 0, 0];
+          for (const n of neighbours[v]) for (let c = 0; c < 3; c += 1) avg[c] += world[n][c] / neighbours[v].size;
+          return p.map((c, k) => c * 0.75 + avg[k] * 0.25);
+        });
+      }
     }
 
     // 반바지 허리 집어넣기 — 티셔츠에 덮이는 곳은 티셔츠 안쪽(TUCK)으로. 티셔츠 면 방향이 바깥(몸 중심에서 멀어지는 쪽)이 되게 맞춰 본다
@@ -809,7 +857,49 @@ export function dressFrom(target, source) {
           if (want > worst) (worst = want), (dir = n);
         }
         if (dir) for (let c = 0; c < 3; c += 1) world[v][c] -= dir[c] * worst;
+        // 가로로 본 티셔츠보다 안에 — 면 방향만 보면 비스듬한 티셔츠 아랫단 밑에서 반바지가 점처럼 비쳤다
+        const out = norm([world[v][0] - hips[12], 0, world[v][2] - hips[14]]);
+        let inward = 0;
+        for (const i of near(world[v])) {
+          const offset = sub(tee.points[i], world[v]);
+          const d = dot(offset, out);
+          const lateral = Math.hypot(offset[0] - out[0] * d, offset[1], offset[2] - out[2] * d);
+          if (lateral > RAY_WIDTH || d > 0.03) continue;
+          inward = Math.max(inward, TUCK - d);
+        }
+        if (inward > 0) for (let c = 0; c < 3; c += 1) world[v][c] -= out[c] * inward;
       }
+    }
+
+    // 뼈 가중치는 바로 밑 몸 피부 것을 섞어 쓴다 — 기본 캐릭터 옷 가중치를 그대로 쓰면 몸과 다르게 휘어
+    // 자세를 잡으면(서기 동작) 가슴 가운데 피부가 옷을 뚫고 나왔다. 정점마다 가까운 피부 것을 따로 쓰면 휠 때 천이 우글거려
+    // 이웃끼리 몇 번 고르게 편다
+    let vertexWeights = world.map((p, v) => {
+      const blended = new Map();
+      for (const [j, w] of weightMaps[v]) blended.set(j, w * (1 - SKIN_WEIGHT));
+      const nearestSkin = [];
+      for (const i of around(p)) if (skin.weights[i]) nearestSkin.push([Math.hypot(...sub(skin.points[i], p)), i]);
+      if (!nearestSkin.length) return weightMaps[v];
+      nearestSkin.sort((x, y) => x[0] - y[0]);
+      const picked = nearestSkin.slice(0, 6);
+      const inv = picked.map(([d]) => 1 / Math.max(d, 0.004));
+      const invSum = inv.reduce((x, y) => x + y, 0);
+      picked.forEach(([, i], n) => {
+        for (const [j, w] of skin.weights[i]) blended.set(j, (blended.get(j) ?? 0) + w * SKIN_WEIGHT * (inv[n] / invSum));
+      });
+      return blended;
+    });
+    for (let round = 0; round < WEIGHT_SMOOTH; round += 1) {
+      vertexWeights = vertexWeights.map((own, v) => {
+        const sum = new Map(own);
+        let n = 1;
+        for (const u of neighbours[v]) {
+          for (const [j, w] of vertexWeights[u]) sum.set(j, (sum.get(j) ?? 0) + w);
+          n += 1;
+        }
+        for (const [j, w] of sum) sum.set(j, w / n);
+        return sum;
+      });
     }
 
     const out = new Float32Array(count * 3);
@@ -819,8 +909,9 @@ export function dressFrom(target, source) {
     for (let v = 0; v < count; v += 1) {
       out.set(apply(tToMesh, world[v]), v * 3);
       outUv.set(uvs[v], v * 2);
+      const source = vertexWeights[v];
       // 무거운 뼈 넷 — 합이 1 이 되게
-      const top = [...weightMaps[v]].sort((x, y) => y[1] - x[1]).slice(0, 4);
+      const top = [...source].sort((x, y) => y[1] - x[1]).slice(0, 4);
       const sum = top.reduce((total, [, w]) => total + w, 0) || 1;
       top.forEach(([j, w], k) => {
         outJoints[v * 4 + k] = j;

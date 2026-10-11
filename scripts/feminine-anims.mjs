@@ -36,9 +36,10 @@ const STYLES = {
   Run: { hipYaw: 1.3, hipRoll: 0.85, torsoRoll: 0.8, legIn: 3, armIn: 3, armSwing: 0.7, headTilt: 0 },
   // 점프 — 원래는 다리를 개구리처럼 벌리고 팔을 활짝 편다. 무릎을 모으고 팔을 내린다
   // kneeIn 허벅지를 제 축으로 안쪽 비틀기(도) — 개구리처럼 바깥을 보던 무릎이 앞을 본다. 발목에서 되돌려 발끝은 그대로
-  Jump: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, legIn: 16, kneeIn: -6, armIn: 25, armSwing: 1, headTilt: 0 },
-  Fall: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, legIn: 16, kneeIn: -6, armIn: 25, armSwing: 1, headTilt: 0 },
-  Land: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, legIn: 9, kneeIn: -4, armIn: 12, armSwing: 1, headTilt: 0 },
+  // level 골반을 바로 세운다 (levelHips) — 원래 점프 · 떨어지기 · 착지는 골반이 옆으로 기울어 비스듬히 뛰었다
+  Jump: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, legIn: 16, kneeIn: -6, armIn: 25, armSwing: 1, headTilt: 0, level: true },
+  Fall: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, legIn: 16, kneeIn: -6, armIn: 25, armSwing: 1, headTilt: 0, level: true },
+  Land: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, legIn: 9, kneeIn: -4, armIn: 12, armSwing: 1, headTilt: 0, level: true },
   // 방망이 — 원래는 허리를 깊이 숙이고 고개를 떨군 구부정한 자세(대기는 안짱다리로 웅크림).
   // 휘두르는 팔(무기 궤적) · 땅을 딛는 다리는 그대로 두고, torsoPitch 로 척추 · 목의 앞숙임을 줄여 윗몸을 세운다
   IdleArmed: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.35, legIn: 0, armIn: 0, armSwing: 1, headTilt: 0 },
@@ -99,7 +100,30 @@ const scaleTwistSwing = (q, mean, yaw, roll) => {
 };
 
 
-// ── 새로 잡는 자세 (공중 구간) ─────────────────────────────────────────
+/** 사원수로 벡터 돌리기 */
+const turn = (q, v) => {
+  const p = mul(mul(q, [v[0], v[1], v[2], 0]), inv(q));
+  return [p[0], p[1], p[2]];
+};
+/** 골반이 좌우로 얼마나 돌았나 (도) — 골반 뼈의 옆(X) 축이 수평면에서 가리키는 쪽 */
+const hipsYawOf = (q) => {
+  const side = turn(q, [1, 0, 0]);
+  return (Math.atan2(-side[2], side[0]) * 180) / Math.PI;
+};
+/** 서기 골반의 돌기 — 바로잡을 때 기준 (아래에서 Idle 을 읽어 채운다) */
+let restHipsYaw = 0;
+/**
+ * 골반 바로 세우기 — 원래 점프 · 떨어지기는 골반이 옆으로 6~12 도 기울고 7 도쯤 더 돌아 있다.
+ * 윗몸은 척추가 되돌려 곧지만 다리가 골반에 매달려 몸 전체가 비스듬히 뛰어 보였다(공중제비는 기운 축으로 돈다).
+ * 돌기는 서기와 같게, 옆 기울기는 0 으로 — 앞뒤 숙임은 그대로. 척추는 hipsNew 로 되돌리므로 윗몸은 안 바뀐다
+ */
+const levelHips = (q) => {
+  const yawed = mul(axis(0, 1, 0, deg(restHipsYaw - hipsYawOf(q))), q);
+  const up = turn(yawed, [0, 1, 0]);
+  return mul(axis(0, 0, 1, Math.atan2(up[0], up[1])), yawed);
+};
+
+// ── 새로 잡는 자세 (공중 구간)─────────────────────────────────────────
 // 원래 점프는 양 무릎을 똑같이 바깥으로 벌린 개구리 자세 · 팔을 수평으로 활짝 편 자세라 각도를 고쳐서는 여성형이 안 된다.
 // 발이 땅에서 떨어진 구간만 다리 · 팔을 새로 잡는다(땅을 딛는 구간은 원래 다리 — 엉덩이 높이와 맞아야 발이 박히거나 뜨지 않는다).
 // 각도는 쉬는 자세(T 자) 기준, 부모 뼈 축. 다리 x: 음수 = 앞으로 들기 · 종아리 x: 양수 = 무릎 굽히기 · 발 x: 양수 = 발끝 내리기
@@ -223,6 +247,13 @@ const read = (accessor, size) => {
   return out;
 };
 
+// 바로 세울 기준 — 서기의 골반 돌기 (VRoid 골반 뼈는 쉬는 자세에서도 조금 돌아 있다)
+{
+  const idle = root.listAnimations().find((animation) => animation.getName() === "Idle");
+  const channel = idle?.listChannels().find((item) => item.getTargetNode()?.getName() === "J_Bip_C_Hips" && item.getTargetPath() === "rotation");
+  if (channel) restHipsYaw = hipsYawOf(meanOf(read(channel.getSampler().getOutput(), 4)));
+}
+
 for (const [name, style] of Object.entries(STYLES)) {
   const source = root.listAnimations().find((animation) => animation.getName() === name);
   if (!source) {
@@ -246,7 +277,8 @@ for (const [name, style] of Object.entries(STYLES)) {
 
   const hips = rot("J_Bip_C_Hips");
   const hipsMean = hips ? meanOf(hips.values) : IDENTITY;
-  const hipsNew = (q) => scaleTwistSwing(q, hipsMean, style.hipYaw, style.hipRoll);
+  const hipsSway = (q) => scaleTwistSwing(q, hipsMean, style.hipYaw, style.hipRoll);
+  const hipsNew = style.level ? (q) => levelHips(hipsSway(q)) : hipsSway;
   const meanRot = (bone) => {
     const track = rot(bone);
     return track ? meanOf(track.values) : IDENTITY;
@@ -260,6 +292,8 @@ for (const [name, style] of Object.entries(STYLES)) {
     J_Bip_C_Spine: (q, t) => {
       if (!hips) return q;
       const old = sampleRotation(hips.times, hips.values, t);
+      // 바로 세울 때는 허리도 같이 — 원래 점프는 윗몸도 5~9 도 돌고 기울어 있다(골반만 세우면 윗몸이 비스듬히 남는다)
+      if (style.level) return mul(inv(hipsNew(old)), levelHips(mul(old, q)));
       return mul(mul(inv(hipsNew(old)), old), q);
     },
     J_Bip_C_Chest: (q) => scaleTwistSwing(q, chestMean, 1, style.torsoRoll),
@@ -310,7 +344,9 @@ for (const [name, style] of Object.entries(STYLES)) {
     const edit = path === "rotation" ? edits[node.getName()] : null;
 
     // 새로 잡는 뼈 — 60 fps 로 다시 찍는다(원래 키가 2 개뿐인 뼈도 움직여야 하고, 공중제비는 한 프레임에 6 도씩 돈다)
-    if (path === "rotation" && posed(node.getName(), 0)) {
+    // 골반을 바로 세우면 척추가 매 순간 그만큼 되돌려야 한다 — 키가 2 개뿐인 척추도 다시 찍는다
+    const respine = style.level && node.getName() === "J_Bip_C_Spine";
+    if (path === "rotation" && (respine || posed(node.getName(), 0))) {
       const track = { times: read(sampler.getInput(), 1), values: read(sampler.getOutput(), 4) };
       const times = [];
       for (let t = 0; t < duration; t += 1 / 60) times.push(t);
@@ -318,7 +354,9 @@ for (const [name, style] of Object.entries(STYLES)) {
       const values = times.map((t) => {
         let q = sampleRotation(track.times, track.values, t);
         if (edit) q = edit(q, t);
-        const { q: target, apply, w } = posed(node.getName(), t);
+        const pose = posed(node.getName(), t);
+        if (!pose) return norm(q);
+        const { q: target, apply, w } = pose;
         return norm(apply ? apply(q) : slerp(q, target, w));
       });
       const resampled = document

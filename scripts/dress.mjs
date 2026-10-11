@@ -45,6 +45,8 @@ const DRAPE_SLOPE = 0.9;
 const FIT_CHEST = 0.55;
 const FIT_WAIST = 0.12;
 const FIT_SHORTS = 0.4;
+const FIT_SLEEVE = 0.5;
+const FIT_SHOULDER = 0.4;
 /** 맞춤 비율을 이웃끼리 고르게 펴는 횟수 */
 const FIT_SMOOTH = 6;
 /** 늘어뜨리고 펴기 횟수 */
@@ -247,6 +249,71 @@ function legMap(document, skinPoints) {
   return { lookup };
 }
 
+/** 팔 단면 지도 — 쉬는 자세(T 자)라 팔은 옆(x)으로 뻗어 있다. 위팔 뼈 축 둘레(y · z)로 팔 피부가 얼마나 먼가 */
+function armMap(document, skinPoints) {
+  const by = (name) => document.getRoot().listNodes().find((n) => n.getName() === name)?.getWorldMatrix();
+  const arms = { L: [by("J_Bip_L_UpperArm"), by("J_Bip_L_LowerArm")], R: [by("J_Bip_R_UpperArm"), by("J_Bip_R_LowerArm")] };
+  const hips = by("J_Bip_C_Hips");
+  const sideOf = (x) => ((x - hips[12]) * (arms.L[0][12] - hips[12]) > 0 ? "L" : "R");
+  const axis = (side, x) => {
+    const [a, b] = arms[side];
+    const t = Math.min(1, Math.max(0, (x - a[12]) / (b[12] - a[12])));
+    return [a[13] + (b[13] - a[13]) * t, a[14] + (b[14] - a[14]) * t];
+  };
+  const polar = (side, x, y, z) => {
+    const [cy, cz] = axis(side, x);
+    const dy = y - cy, dz = z - cz;
+    return { bin: Math.floor((((Math.atan2(dy, dz) / (2 * Math.PI)) * RADIAL_BINS) + RADIAL_BINS) % RADIAL_BINS), r: Math.hypot(dy, dz), centre: [cy, cz] };
+  };
+  const startX = { L: arms.L[0][12], R: arms.R[0][12] };
+  const outside = (side, x) => Math.abs(x - hips[12]) > Math.abs(startX[side] - hips[12]) - 0.01;
+  const grid = new Map();
+  for (const [x, y, z] of skinPoints) {
+    const side = sideOf(x);
+    if (!outside(side, x)) continue;
+    const { bin, r } = polar(side, x, y, z);
+    if (r > 0.1) continue;
+    const key = `${side},${Math.round(x * 100)},${bin}`;
+    if (r > (grid.get(key) ?? 0)) grid.set(key, r);
+  }
+  const lookup = (x, y, z) => {
+    const side = sideOf(x);
+    const { bin, r, centre } = polar(side, x, y, z);
+    const xx = Math.round(x * 100);
+    for (let reach = 0; reach <= 3; reach += 1) {
+      let sum = 0, n = 0;
+      for (let dx = -reach; dx <= reach; dx += 1) for (let db = -reach; db <= reach; db += 1) {
+        const value = grid.get(`${side},${xx + dx},${(bin + db + RADIAL_BINS) % RADIAL_BINS}`);
+        if (value) (sum += value), (n += 1);
+      }
+      if (n) return { R: sum / n, r, centre };
+    }
+    return { R: 0, r, centre };
+  };
+  return { lookup, startX: Math.abs(startX.L - hips[12]), centreX: hips[12] };
+}
+
+/** 어깨 윗면 지도 — 목과 어깨 사이, 가로 자리(x · z)마다 피부 맨 위 높이 */
+function shoulderMap(document, skinPoints) {
+  const by = (name) => document.getRoot().listNodes().find((n) => n.getName() === name)?.getWorldMatrix();
+  const armpitY = by("J_Bip_L_UpperArm")[13] - 0.06;
+  const grid = new Map();
+  for (const [x, y, z] of skinPoints) {
+    if (y < armpitY) continue;
+    const key = `${Math.round(x * 100)},${Math.round(z * 100)}`;
+    if (y > (grid.get(key) ?? -Infinity)) grid.set(key, y);
+  }
+  return (x, z) => {
+    const xx = Math.round(x * 100), zz = Math.round(z * 100);
+    for (let reach = 0; reach <= 2; reach += 1) {
+      let best = -Infinity;
+      for (let dx = -reach; dx <= reach; dx += 1) for (let dz = -reach; dz <= reach; dz += 1) best = Math.max(best, grid.get(`${xx + dx},${zz + dz}`) ?? -Infinity);
+      if (best > -Infinity) return best;
+    }
+    return null;
+  };
+}
+
 /** 대상 문서에 기준 문서의 티셔츠 · 반바지를 옮겨 입힌다. 돌려주는 것: { top, bottom } 정점 수 */
 export function dressFrom(target, source) {
   const sNode = bodyNode(source);
@@ -297,6 +364,10 @@ export function dressFrom(target, source) {
   const sRadial = radialMap(source, skinOf(source).points);
   const tRadial = radialMap(target, skin.points);
   const sLegs = legMap(source, skinOf(source).points);
+  const sArms = armMap(source, skinOf(source).points);
+  const tArms = armMap(target, skin.points);
+  const sTop = shoulderMap(source, skinOf(source).points);
+  const tTop = shoulderMap(target, skin.points);
   const tLegs = legMap(target, skin.points);
   const counts = {};
 
@@ -356,9 +427,36 @@ export function dressFrom(target, source) {
             const amount = FIT_CHEST + (FIT_WAIST - FIT_CHEST) * t;
             const gap = MARGIN + Math.max(0, src.r - src.R - MARGIN) * amount;
             const k = (dst.R + gap) / dst.r;
-            fit = { k, centre: dst.centre };
+            fit = [(moved[0] - dst.centre[0]) * (k - 1), 0, (moved[2] - dst.centre[1]) * (k - 1)];
           }
         }
+      }
+      // 1-1e. 소매 · 어깨 (티셔츠) — 뼈만 따라 옮기면 기본 캐릭터의 어깨 폭 · 높이가 그대로라 각져 보였다
+      if (slot === "top" && p[1] > sRadial.armpitY - 0.04) {
+        const delta = fit ? [...fit] : [0, 0, 0];
+        let touched = Boolean(fit);
+        if (Math.abs(p[0] - sArms.centreX) > sArms.startX - 0.02) {
+          // 소매 — 위팔 뼈 축 둘레로
+          const src = sArms.lookup(p[0], p[1], p[2]);
+          const dst = tArms.lookup(moved[0], moved[1], moved[2]);
+          if (src.R && dst.R && dst.r > 1e-4) {
+            const gap = MARGIN + Math.max(0, src.r - src.R - MARGIN) * FIT_SLEEVE;
+            const k = (dst.R + gap) / dst.r;
+            delta[1] += (moved[1] - dst.centre[0]) * (k - 1);
+            delta[2] += (moved[2] - dst.centre[1]) * (k - 1);
+            touched = true;
+          }
+        } else {
+          // 어깨 윗면 — 피부 맨 위에서 띄운 높이를 옮긴다
+          const srcTop = sTop(p[0], p[2]);
+          const dstTop = tTop(moved[0], moved[2]);
+          if (srcTop !== null && dstTop !== null && p[1] > srcTop - 0.005) {
+            const gap = MARGIN + Math.max(0, p[1] - srcTop - MARGIN) * FIT_SHOULDER;
+            delta[1] += dstTop + gap - moved[1];
+            touched = true;
+          }
+        }
+        if (touched) fit = delta;
       }
       // 1-1b. 반바지 — 허리에서 사타구니까지(다리로 갈라지기 전) 같은 식으로 몸에 붙인다. 기본 옷 크기 그대로면 티셔츠 아래로 상자처럼 튀어나왔다
       if (slot === "bottom" && p[1] > sRadial.crotchY) {
@@ -368,7 +466,7 @@ export function dressFrom(target, source) {
           const gap = BOTTOM_MARGIN + Math.max(0, src.r - src.R - BOTTOM_MARGIN) * FIT_SHORTS;
           const blend = Math.min(1, (p[1] - sRadial.crotchY) / 0.04);
           const k = 1 + ((dst.R + gap) / dst.r - 1) * blend;
-          fit = { k, centre: dst.centre };
+          fit = [(moved[0] - dst.centre[0]) * (k - 1), 0, (moved[2] - dst.centre[1]) * (k - 1)];
         }
       }
       // 1-1c. 반바지 다리 — 사타구니 아래는 허벅지마다 같은 식으로
@@ -379,7 +477,7 @@ export function dressFrom(target, source) {
           const gap = BOTTOM_MARGIN + Math.max(0, src.r - src.R - BOTTOM_MARGIN) * FIT_SHORTS;
           const blend = Math.min(1, (sRadial.crotchY + 0.04 - p[1]) / 0.04);
           const k = 1 + ((dst.R + gap) / dst.r - 1) * blend;
-          fit = { k, centre: dst.centre };
+          fit = [(moved[0] - dst.centre[0]) * (k - 1), 0, (moved[2] - dst.centre[1]) * (k - 1)];
         }
       }
       world.push(moved);
@@ -407,20 +505,20 @@ export function dressFrom(target, source) {
         for (const v of group) near[v] = all;
       }
       // 움직일 거리(가로 xz)를 펴서 더한다 — 비율을 펴면 몸통 중심 · 다리 축처럼 중심이 다른 점끼리 섞여 반바지 윗단이 가시처럼 튀었다
-      let shift = world.map((p, v) => {
-        if (!fits[v]) return [0, 0];
-        const [cx, cz] = fits[v].centre;
-        return [(p[0] - cx) * (fits[v].k - 1), (p[2] - cz) * (fits[v].k - 1)];
-      });
+      let shift = fits.map((f) => f ?? [0, 0, 0]);
       for (let round = 0; round < FIT_SMOOTH; round += 1) {
         shift = shift.map((value, v) => {
           if (!fits[v]) return value;
-          let x = value[0], z = value[1], n = 1;
-          for (const u of near[v]) if (fits[u] && u !== v) (x += shift[u][0]), (z += shift[u][1]), (n += 1);
-          return [x / n, z / n];
+          const sum = [...value];
+          let n = 1;
+          for (const u of near[v]) if (fits[u] && u !== v) {
+            for (let c = 0; c < 3; c += 1) sum[c] += shift[u][c];
+            n += 1;
+          }
+          return sum.map((c) => c / n);
         });
       }
-      world = world.map((p, v) => (fits[v] ? [p[0] + shift[v][0], p[1], p[2] + shift[v][1]] : p));
+      world = world.map((p, v) => (fits[v] ? [p[0] + shift[v][0], p[1] + shift[v][1], p[2] + shift[v][2]] : p));
     }
 
     // 1-2. 잘게 쪼개기 — 기본 옷은 점이 717 개뿐이라 가슴 앞이 넓은 평면 하나다. 점만 밀어내면 그 면이 큰 가슴을 가로질러 뚫었다

@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 
 import { dressAll } from "./dress.mjs";
 import { optimizeModel, optimizeThumb } from "./optimize.mjs";
+import { buildParts } from "./parts.mjs";
 import { imageBytes, readGlb, REQUIRED_BONES, vrmInfo } from "./vrm.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -133,6 +134,8 @@ for (const id of readdirSync(join(root, "characters")).sort()) {
     license: meta.license,
     source: meta.source,
     tags: meta.tags ?? [],
+    // 부품 전용 — 캐릭터 만들기의 머리 부품으로만 쓴다 (캐릭터 고르기 목록에는 안 나온다)
+    ...(meta.partsOnly ? { partsOnly: true } : {}),
     model: `characters/${id}/game.glb`,
     thumb: thumbFile ? `characters/${id}/${thumbFile}` : null,
     bytes: checkOnly ? glb.bytes : statSync(join(out, "game.glb")).size,
@@ -148,5 +151,7 @@ if (!checkOnly) {
   if (!errors.length) await dressAll();
   writeFileSync(join(dist, "catalog.json"), `${JSON.stringify({ _note: "scripts/build.mjs 가 만든다. 손으로 고치지 않는다.", characters: catalog }, null, 2)}\n`);
   console.log(`캐릭터 ${catalog.length} 개 → dist/catalog.json`);
+  // 캐릭터 만들기(CUSTOMIZE)의 조립 부품 — 머리 · 얼굴 그림 (scripts/parts.mjs)
+  if (!errors.length) await buildParts();
 }
 if (errors.length) process.exit(1);

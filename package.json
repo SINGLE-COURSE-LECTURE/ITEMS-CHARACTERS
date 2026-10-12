@@ -7,7 +7,8 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "check": "node scripts/build.mjs --check",
-    "thumbs": "node scripts/thumbs.mjs"
+    "thumbs": "node scripts/thumbs.mjs",
+    "parts": "node scripts/parts.mjs"
   },
   "devDependencies": {
     "@gltf-transform/core": "^4.5.1",

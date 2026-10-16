@@ -7,6 +7,7 @@
  *   몸    yaw(왼쪽 +) · pitch(앞 숙임 +) · hipYaw · drop(골반 내림) · 다리(lx · lk · lf · rx · rk · rf · lad · rad)
  * 팔: 오른팔은 손목이 H 에 닿게 두 뼈 IK(팔꿈치는 아래 · 바깥), 손은 +Z 가 D 를 보게 돌린다.
  *     왼손 주먹은 오른손 주먹(손목 + 손 회전 × GRIP_R)보다 손잡이 끝 쪽으로 GRIP_GAP 만큼, 같은 방망이 위를 쥔다 — 콘티대로 두 손 쥐기.
+ * 방향은 콘티 그대로 (캐릭터가 화면을 볼 때): 내려찍기는 오른쪽 앞 아래 · 올려치기는 왼쪽 어깨 위로 · 가로 베기는 왼쪽 → 오른쪽.
  * 앞 단의 끝 키 = 다음 단의 첫 키 — 콤보가 끊기지 않게 이어진다. 4 단(홈런)은 bat-from-mocap.mjs 의 실제 스윙.
  *
  * 쓰는 법 (3DLECTURE-GAMES 폴더에서): node ITEMS-CHARACTERS/scripts/bat-ik-anims.mjs [동작 파일]
@@ -97,42 +98,45 @@ const ease = (x) => x * x * (3 - 2 * x);
 const n = (x, y, z) => unit([x, y, z]);
 const STANCE = { lx: -14, lk: 18, lf: -4, rx: 10, rk: 18, rf: -4, lad: -10, rad: -10, drop: 0.05 };
 // 1 단 끝 = 2 단 시작 · 2 단 끝 = 3 단 시작
-const LOW_FRONT = { ...STANCE, pitch: 28, lx: -38, lk: 42, lf: -8, rx: 22, rk: 30, drop: 0.12, H: [-0.03, 0.8, 0.4], D: n(0, -0.92, 0.38) };
-const HIGH_RIGHT = { ...STANCE, yaw: -35, hipYaw: -10, pitch: 0, H: [-0.28, 1.42, 0.12], D: n(-0.25, 0.85, -0.45) };
-const LEFT_END = { ...STANCE, yaw: 45, hipYaw: 12, H: [0.3, 1.13, 0.2], D: n(0.95, 0.05, -0.25) };
+// 콘티 방향 (캐릭터가 화면을 볼 때): 1 단은 몸 오른쪽 앞 아래로 끝나고 · 2 단은 거기서 왼쪽 어깨 위로 · 3 단은 왼쪽에서 오른쪽으로
+const LOW_RIGHT = { ...STANCE, yaw: -15, hipYaw: -5, pitch: 20, lx: -34, lk: 40, lf: -8, rx: 20, rk: 28, drop: 0.1, H: [-0.08, 0.86, 0.36], D: n(-0.6, -0.2, 0.77) };
+const HIGH_LEFT = { ...STANCE, yaw: 35, hipYaw: 10, pitch: 0, H: [0.16, 1.42, 0.12], D: n(0.2, 0.85, -0.48) };
+const RIGHT_END = { ...STANCE, yaw: -45, hipYaw: -12, H: [-0.3, 1.13, 0.2], D: n(-0.95, 0.05, -0.25) };
+// 콘티 1 단 준비 — 오른 어깨 위로 방망이를 비스듬히 메고 선다
+const READY = { ...STANCE, yaw: -15, hipYaw: -5, H: [-0.18, 1.25, 0.16], D: n(0.12, 0.82, -0.56) };
 
 const CLIPS = {
   // 1 단 내려찍기 — 머리 위로 들었다가 왼발을 내디디며 앞 아래로 곧장 (타격 0.5)
   ArmedAttack1: {
     seconds: 0.62,
     keys: [
-      [0, { ...STANCE, yaw: -10, H: [-0.1, 1.05, 0.28], D: n(0.15, 0.9, -0.35) }],
-      [0.3, { ...STANCE, pitch: -10, lx: -22, lk: 30, H: [-0.04, 1.6, -0.03], D: n(0.04, 0.35, -0.94) }],
-      [0.5, { ...STANCE, pitch: 22, lx: -36, lk: 40, lf: -8, rx: 20, rk: 28, drop: 0.1, H: [-0.03, 1.0, 0.42], D: n(0, -0.55, 0.84) }],
-      [0.72, LOW_FRONT],
-      [1, LOW_FRONT],
+      [0, READY],
+      [0.32, { ...STANCE, yaw: -5, pitch: -8, lx: -22, lk: 30, H: [-0.05, 1.56, 0.06], D: n(0.02, 0.55, -0.83) }],
+      [0.55, { ...STANCE, yaw: -8, pitch: 20, lx: -34, lk: 40, lf: -8, rx: 20, rk: 28, drop: 0.09, H: [-0.05, 0.95, 0.38], D: n(-0.15, -0.75, 0.64) }],
+      [0.78, LOW_RIGHT],
+      [1, LOW_RIGHT],
     ],
   },
-  // 2 단 올려치기 — 낮은 앞에서 왼쪽 아래 → 오른쪽 위로 비스듬히 (타격 0.45)
+  // 2 단 올려치기 — 오른쪽 아래에서 왼쪽 어깨 위로 비스듬히 (타격 0.5)
   ArmedAttack2: {
     seconds: 0.55,
     keys: [
-      [0, LOW_FRONT],
-      [0.2, { ...STANCE, yaw: 25, hipYaw: 8, pitch: 18, drop: 0.09, H: [0.16, 0.86, 0.3], D: n(0.55, -0.75, 0.35) }],
-      [0.45, { ...STANCE, yaw: -8, pitch: 4, drop: 0.06, H: [-0.02, 1.1, 0.45], D: n(-0.5, 0.55, 0.65) }],
-      [0.75, HIGH_RIGHT],
-      [1, HIGH_RIGHT],
+      [0, LOW_RIGHT],
+      [0.25, { ...STANCE, yaw: -25, hipYaw: -8, pitch: 16, drop: 0.08, H: [-0.15, 0.86, 0.3], D: n(-0.6, -0.6, 0.5) }],
+      [0.5, { ...STANCE, yaw: 8, pitch: 4, drop: 0.05, H: [0.03, 1.15, 0.4], D: n(0.45, 0.65, 0.6) }],
+      [0.8, HIGH_LEFT],
+      [1, HIGH_LEFT],
     ],
   },
-  // 3 단 가로 베기 — 오른쪽 위에서 가슴 높이로 오른쪽 → 왼쪽 (타격 0.5)
+  // 3 단 가로 베기 — 왼쪽 위에서 가슴 높이로 왼쪽 → 오른쪽 (타격 0.5) · 끝은 오른쪽 — 4 단 홈런 준비(오른 어깨)로 이어진다
   ArmedAttack3: {
     seconds: 0.6,
     keys: [
-      [0, HIGH_RIGHT],
-      [0.25, { ...STANCE, yaw: -45, hipYaw: -12, H: [-0.3, 1.24, -0.02], D: n(-0.55, 0.12, -0.82) }],
-      [0.5, { ...STANCE, yaw: 5, hipYaw: 2, drop: 0.07, H: [0, 1.15, 0.45], D: n(0.45, 0.05, 0.89) }],
-      [0.75, LEFT_END],
-      [1, LEFT_END],
+      [0, HIGH_LEFT],
+      [0.25, { ...STANCE, yaw: 45, hipYaw: 12, H: [0.28, 1.24, -0.02], D: n(0.55, 0.12, -0.82) }],
+      [0.5, { ...STANCE, yaw: -5, hipYaw: -2, drop: 0.07, H: [0, 1.15, 0.45], D: n(-0.45, 0.05, 0.89) }],
+      [0.75, RIGHT_END],
+      [1, RIGHT_END],
     ],
   },
 };

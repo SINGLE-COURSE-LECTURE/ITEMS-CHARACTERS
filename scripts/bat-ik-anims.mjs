@@ -6,7 +6,7 @@
  *   D     방망이가 뻗는 방향 (손잡이 → 굵은 쪽). 게임은 방망이를 오른손 뼈 +Z(엄지 쪽)로 붙인다 (equipment.ts buildBat)
  *   몸    yaw(왼쪽 +) · pitch(앞 숙임 +) · hipYaw · drop(골반 내림) · 다리(lx · lk · lf · rx · rk · rf · lad · rad)
  * 팔: 오른팔은 손목이 H 에 닿게 두 뼈 IK(팔꿈치는 아래 · 바깥), 손은 +Z 가 D 를 보게 돌린다.
- *     왼손은 손잡이 아래쪽(H - D × GRIP_GAP)을 같이 쥔다 — 두 손으로 크게 휘두르는 콘티대로.
+ *     왼손 주먹은 오른손 주먹(손목 + 손 회전 × GRIP_R)보다 손잡이 끝 쪽으로 GRIP_GAP 만큼, 같은 방망이 위를 쥔다 — 콘티대로 두 손 쥐기.
  * 앞 단의 끝 키 = 다음 단의 첫 키 — 콤보가 끊기지 않게 이어진다. 4 단(홈런)은 bat-from-mocap.mjs 의 실제 스윙.
  *
  * 쓰는 법 (3DLECTURE-GAMES 폴더에서): node ITEMS-CHARACTERS/scripts/bat-ik-anims.mjs [동작 파일]
@@ -20,8 +20,11 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const animsPath = process.argv[2] ?? join(here, "..", "..", "core", "assets", "models", "player-anims.glb");
 const FPS = 60;
-/** 왼손이 오른손보다 손잡이 끝 쪽으로 이만큼 (m) */
-const GRIP_GAP = 0.09;
+/** 왼손이 오른손보다 손잡이 끝 쪽으로 이만큼 (m) — 게임은 오른손을 손잡이 끝에서 0.17 m 자리에 쥐게 붙인다 (equipment.ts buildBat GRIP) */
+const GRIP_GAP = 0.085;
+/** 손 뼈(손목) 기준 주먹 쥔 자리 — 방망이가 지나가는 곳 (handFit.ts FALLBACK, 왼손은 좌우 반대) */
+const GRIP_R = [-0.069, 0.006, -0.004];
+const GRIP_L = [0.069, 0.006, -0.004];
 
 // ── 벡터 · 사원수 ────────────────────────────────────────────────
 const add = (a, b) => [a[0] + b[0], a[1] + b[1], a[2] + b[2]];
@@ -202,7 +205,7 @@ function solve(v) {
     world.set(name, w);
     return w;
   };
-  const arm = (side, wrist, D) => {
+  const arm = (side, wrist, D, wrap = null) => {
     const s = side === "R" ? -1 : 1;
     const upper = `J_Bip_${side}_UpperArm`;
     const lower = `J_Bip_${side}_LowerArm`;
@@ -225,10 +228,11 @@ function solve(v) {
     const rest = [s, 0, 0];
     const qu = mul(fromTo(rotate(shoulder.q, rest), sub(E, S)), shoulder.q);
     const ql = mul(fromTo(rotate(qu, rest), sub(W, E)), qu);
-    // 손 — +Z 가 방망이 쪽, 손가락(오른손 -X · 왼손 +X)은 아래팔을 따라
+    // 손 — +Z(엄지)가 방망이 쪽. 손가락(오른손 -X · 왼손 +X)이 감는 방향은 두 손이 같게(wrap) —
+    // 실제 두 손 쥐기처럼 손가락은 같은 쪽으로 감고 손바닥은 서로 마주 본다 (따로 잡으면 손목이 X 자로 꼬였다)
     const fore = unit(sub(W, E));
     const z = unit(D);
-    let fingers = sub(fore, scale(z, dot(fore, z)));
+    let fingers = wrap ?? sub(fore, scale(z, dot(fore, z)));
     fingers = len(fingers) < 1e-4 ? cross(z, [0, 1, 0]) : unit(fingers);
     const x = side === "R" ? scale(fingers, -1) : fingers;
     const y = cross(z, x);
@@ -236,9 +240,29 @@ function solve(v) {
     local[upper] = qnorm(mul(inv(shoulder.q), qu));
     local[lower] = qnorm(mul(inv(qu), ql));
     local[hand] = qnorm(mul(inv(ql), qh));
+    return { W, qh, fingers };
   };
-  arm("R", v.H, v.D);
-  arm("L", sub(v.H, scale(v.D, GRIP_GAP)), v.D);
+  // 오른손 주먹 자리 = 방망이 위의 한 점. 왼손 주먹은 그보다 손잡이 끝 쪽으로 GRIP_GAP 만큼 같은 방망이 위에
+  const right = arm("R", v.H, v.D);
+  const gripR = add(right.W, rotate(right.qh, GRIP_R));
+  const gripL = sub(gripR, scale(v.D, GRIP_GAP));
+  // 왼손 손목 = 주먹 자리 - 손 회전 × 주먹 오프셋 — 손 회전이 IK 결과에 따라 달라지니 두 번 맞춘다
+  let wristL = sub(gripL, scale(v.D, 0.0));
+  for (let pass = 0; pass < 3; pass += 1) {
+    const left = arm("L", wristL, v.D, right.fingers);
+    wristL = sub(gripL, rotate(left.qh, GRIP_L));
+  }
+  arm("L", wristL, v.D, right.fingers);
+  // 주먹 — 네 손가락을 손바닥 쪽으로 만다 (오른손 +Z 축 · 왼손 -Z 축), 엄지는 살짝
+  for (const [side, sign] of [["R", 1], ["L", -1]]) {
+    for (const finger of ["Index", "Middle", "Ring", "Little"]) {
+      local[`J_Bip_${side}_${finger}1`] = Z(sign * 70);
+      local[`J_Bip_${side}_${finger}2`] = Z(sign * 95);
+      local[`J_Bip_${side}_${finger}3`] = Z(sign * 60);
+    }
+    local[`J_Bip_${side}_Thumb2`] = Y(sign * -25);
+    local[`J_Bip_${side}_Thumb3`] = Y(sign * -30);
+  }
   return { local, hipsPos };
 }
 

@@ -46,6 +46,7 @@ const STYLES = {
   ArmedAttack1: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.6, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
   ArmedAttack2: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.6, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
   ArmedAttack3: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
+  ArmedAttack4: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
 };
 
 // ── 사원수 (x, y, z, w) ───────────────────────────────────────────────

@@ -4,7 +4,7 @@
  * 원본: FIELD_INIT/blender/retarget_bat.py 가 VRoid 뼈대로 옮긴 glb
  *   BatSwingFull  CMU 124_07 Baseball Swing — 두 번 휘두른다 (2.8 초 · 8.4 초 근처가 타격)
  *   BatChop       Quaternius UAL2 TreeChopping (CC0) — 두 손 내려찍기
- * 1단 = 비스듬히 내려치기 · 2단 = 옆으로 크게 휘두르기 (UAL2 전투 휘두르기, CC0) · 3단(마무리) = 홈런 스윙 (CMU).
+ * 1단 = 내려찍기 · 2단 = 비스듬히 내려치기 · 3단 = 옆으로 크게 (UAL2, CC0) · 4단(마무리) = 홈런 스윙 (CMU).
  * 타자는 옆으로 서서 치므로, 타격 순간 가슴이 앞(+Z)을 보도록 골반을 통째로 돌린다.
  * 손가락은 원본에 없어 서기(IdleArmed)의 쥔 손을 쓴다 — 방망이를 쥔 채로.
  *
@@ -25,12 +25,14 @@ if (!sourcePath) throw new Error("retarget_bat.py 출력 glb 를 주세요");
 /** 잘라 쓸 구간 (초) — 게임 타격 순간(ARMED_IMPACT 0.3 · 0.2 · 0.32)에 맞춰 잡았다 */
 /** 시험할 때는 환경 변수 BAT_CUTS(JSON)로 바꿔 넣는다 */
 const CUTS = process.env.BAT_CUTS ? JSON.parse(process.env.BAT_CUTS) : {
-  // 1단 — 위에서 비스듬히 내려치기 (UAL2 Sword_Regular_A, CC0) · 2단 — 들어 올렸다 옆으로 크게 (Sword_Regular_B)
+  // 1단 — 어깨 뒤로 들었다가 앞 아래로 내려찍기 (UAL2 TreeChopping, CC0). 도끼 쥔 손이라 손목을 -90 도 돌려 방망이가 앞을 보게
+  ArmedAttack1: { from: "BatChop", start: 0, end: Infinity, keepFacing: true, rise: 0.5, handOffset: [-90, 0, 0] },
+  // 2단 — 위에서 비스듬히 내려치기 · 3단 — 들어 올렸다 옆으로 크게 (UAL2 Sword_Regular_A · B, CC0)
   // 원래 앉는 깊이(골반 0.4 ~ 0.5 m)가 너무 깊어 절반만 (rise 0.5)
-  ArmedAttack1: { from: "BatSlashA", start: 0, end: Infinity, keepFacing: true, rise: 0.5 },
-  ArmedAttack2: { from: "BatSlashB", start: 0, end: Infinity, keepFacing: true, rise: 0.5 },
-  // 3단(마무리) — 홈런 스윙 (CMU 124_07 첫 스윙, 어깨 너머까지)
-  ArmedAttack3: { from: "BatSwingFull", start: 2.45, end: 3.75, mirror: false, impact: 2.82, rise: 1 },
+  ArmedAttack2: { from: "BatSlashA", start: 0, end: Infinity, keepFacing: true, rise: 0.5 },
+  ArmedAttack3: { from: "BatSlashB", start: 0, end: Infinity, keepFacing: true, rise: 0.5 },
+  // 4단(마무리) — 홈런 스윙 (CMU 124_07 첫 스윙, 어깨 너머까지)
+  ArmedAttack4: { from: "BatSwingFull", start: 2.45, end: 3.75, mirror: false, impact: 2.82, rise: 1 },
 };
 const FPS = 60;
 
@@ -46,6 +48,12 @@ const turn = (q, v) => {
   return [p[0], p[1], p[2]];
 };
 const yawQ = (a) => [0, Math.sin(a / 2), 0, Math.cos(a / 2)];
+const axisQ = (x, y, z, d) => {
+  const a = (d * Math.PI) / 360;
+  return [x * Math.sin(a), y * Math.sin(a), z * Math.sin(a), Math.cos(a)];
+};
+/** [x, y, z] 도 → 회전 (X 다음 Y 다음 Z) */
+const euler = ([x, y, z]) => mul(axisQ(0, 0, 1, z), mul(axisQ(0, 1, 0, y), axisQ(1, 0, 0, x)));
 const slerp = (a, b, t) => {
   let d = a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
   const bb = d < 0 ? b.map((v) => -v) : b;
@@ -135,9 +143,12 @@ for (const [name, cut] of Object.entries(CUTS)) {
     const base = Array.from(channel.getSampler().getOutput().getArray().slice(0, path === "rotation" ? 4 : 3));
     let values;
     if (path === "rotation" && tracks.has(`${bone}|rotation`) && !/Thumb|Index|Middle|Ring|Little/.test(bone)) {
+      // 손목 덧돌리기 (handOffset [x, y, z] 도) — 도끼 · 칼 쥐는 손 방향을 방망이에 맞춘다
+      const hand = cut.handOffset && bone === "J_Bip_R_Hand" ? euler(cut.handOffset) : null;
       values = times.map((t) => {
         const q = read(bone, t);
-        return bone === "J_Bip_C_Hips" ? mul(fix, q) : q;
+        if (bone === "J_Bip_C_Hips") return mul(fix, q);
+        return hand ? mul(q, hand) : q;
       });
     } else if (path === "translation" && bone === "J_Bip_C_Hips" && tracks.has(`${bone}|translation`)) {
       const s = tracks.get(`${bone}|translation`);

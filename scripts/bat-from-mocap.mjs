@@ -4,7 +4,7 @@
  * 원본: FIELD_INIT/blender/retarget_bat.py 가 VRoid 뼈대로 옮긴 glb
  *   BatSwingFull  CMU 124_07 Baseball Swing — 두 번 휘두른다 (2.8 초 · 8.4 초 근처가 타격)
  *   BatChop       Quaternius UAL2 TreeChopping (CC0) — 두 손 내려찍기
- * 1단 = 첫 스윙 · 2단 = 둘째 스윙을 좌우로 뒤집어 반대로 · 3단 = 둘째 스윙을 원래 방향으로 길게 (마무리).
+ * 1단 = 비스듬히 내려치기 · 2단 = 옆으로 크게 휘두르기 (UAL2 전투 휘두르기, CC0) · 3단(마무리) = 홈런 스윙 (CMU).
  * 타자는 옆으로 서서 치므로, 타격 순간 가슴이 앞(+Z)을 보도록 골반을 통째로 돌린다.
  * 손가락은 원본에 없어 서기(IdleArmed)의 쥔 손을 쓴다 — 방망이를 쥔 채로.
  *
@@ -23,12 +23,14 @@ const animsPath = process.argv[3] ?? join(here, "..", "..", "core", "assets", "m
 if (!sourcePath) throw new Error("retarget_bat.py 출력 glb 를 주세요");
 
 /** 잘라 쓸 구간 (초) — 게임 타격 순간(ARMED_IMPACT 0.3 · 0.2 · 0.32)에 맞춰 잡았다 */
-const CUTS = {
-  ArmedAttack1: { from: "BatSwingFull", start: 2.5, end: 3.55, mirror: false, impact: 2.82 },
-  ArmedAttack2: { from: "BatSwingFull", start: 8.18, end: 9.25, mirror: true, impact: 8.4 },
-  // 3단(마무리) — 둘째 스윙을 원래 방향으로, 끝까지 길게 휘두른다
-  // (나무 찍기는 두 손 도끼 동작이라 한 손 방망이로는 방망이가 뒤로 꺾여 어색했다)
-  ArmedAttack3: { from: "BatSwingFull", start: 7.9, end: 9.6, mirror: false, impact: 8.4 },
+/** 시험할 때는 환경 변수 BAT_CUTS(JSON)로 바꿔 넣는다 */
+const CUTS = process.env.BAT_CUTS ? JSON.parse(process.env.BAT_CUTS) : {
+  // 1단 — 위에서 비스듬히 내려치기 (UAL2 Sword_Regular_A, CC0) · 2단 — 들어 올렸다 옆으로 크게 (Sword_Regular_B)
+  // 원래 앉는 깊이(골반 0.4 ~ 0.5 m)가 너무 깊어 절반만 (rise 0.5)
+  ArmedAttack1: { from: "BatSlashA", start: 0, end: Infinity, keepFacing: true, rise: 0.5 },
+  ArmedAttack2: { from: "BatSlashB", start: 0, end: Infinity, keepFacing: true, rise: 0.5 },
+  // 3단(마무리) — 홈런 스윙 (CMU 124_07 첫 스윙, 어깨 너머까지)
+  ArmedAttack3: { from: "BatSwingFull", start: 2.45, end: 3.75, mirror: false, impact: 2.82, rise: 1 },
 };
 const FPS = 60;
 
@@ -112,7 +114,8 @@ for (const [name, cut] of Object.entries(CUTS)) {
     const f = turn(q, [0, 0, 1]);
     return Math.atan2(f[0], f[2]);
   };
-  const fix = yawQ(-facingAt(cut.impact ?? (start + end) / 2));
+  // 이미 앞을 보고 치는 동작(전투 휘두르기)은 돌리지 않는다 (keepFacing)
+  const fix = cut.keepFacing ? [0, 0, 0, 1] : yawQ(-facingAt(cut.impact ?? (start + end) / 2));
 
   // 지운다 (예전 것 · 여성형)
   for (const old of root.listAnimations().filter((a) => a.getName() === name || a.getName() === `${name}_F`)) {
@@ -139,7 +142,8 @@ for (const [name, cut] of Object.entries(CUTS)) {
     } else if (path === "translation" && bone === "J_Bip_C_Hips" && tracks.has(`${bone}|translation`)) {
       const s = tracks.get(`${bone}|translation`);
       // 높이만 원본에서 (앞뒤 좌우는 게임 물리가 정한다)
-      values = times.map((t) => [base[0], s(t)[1], base[2]]);
+      const y0 = s(start)[1];
+      values = times.map((t) => [base[0], base[1] + (s(t)[1] - y0) * (cut.rise ?? 1), base[2]]);
     } else values = times.map(() => base);
     const out = document
       .createAnimationSampler()

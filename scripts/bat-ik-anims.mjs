@@ -11,6 +11,7 @@
  * 앞 단의 끝 키 = 다음 단의 첫 키 — 콤보가 끊기지 않게 이어진다. 4 단(홈런)은 bat-from-mocap.mjs 의 실제 스윙.
  *
  * 쓰는 법 (3DLECTURE-GAMES 폴더에서): node ITEMS-CHARACTERS/scripts/bat-ik-anims.mjs [동작 파일]
+ * BAT_DEBUG=1 을 주면 프레임 사이에 12° 넘게 도는 뼈를 찍는다 (팔꿈치 · 손목이 순간 뒤집히는 곳 찾기)
  * 순서: bat-from-mocap.mjs (4 단) → 이 스크립트 (1 ~ 3 단) → feminine-anims.mjs (_F)
  */
 import { NodeIO } from "@gltf-transform/core";
@@ -92,16 +93,19 @@ const fromBasis = (x, y, z) => {
   }
   return qnorm(q);
 };
-const ease = (x) => x * x * (3 - 2 * x);
+/** 팔뚝 비틀림 — 앞 프레임 값 (굽는 동작마다 새로) */
+const lastTwist = {};
+const dot4 = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2] + a[3] * b[3];
 
 // ── 콤보 키 ─────────────────────────────────────────────────────
 const n = (x, y, z) => unit([x, y, z]);
-const STANCE = { lx: -14, lk: 18, lf: -4, rx: 10, rk: 18, rf: -4, lad: -10, rad: -10, drop: 0.05 };
+// 콘티처럼 다리를 넓게 벌리고 무릎을 굽힌 자세
+const STANCE = { lx: -16, lk: 24, lf: -6, rx: 12, rk: 24, rf: -6, lad: -14, rad: -14, drop: 0.08 };
 // 1 단 끝 = 2 단 시작 · 2 단 끝 = 3 단 시작
 // 콘티 방향 (캐릭터가 화면을 볼 때): 1 단은 몸 오른쪽 앞 아래로 끝나고 · 2 단은 거기서 왼쪽 어깨 위로 · 3 단은 왼쪽에서 오른쪽으로
-const LOW_RIGHT = { ...STANCE, yaw: -15, hipYaw: -5, pitch: 20, lx: -34, lk: 40, lf: -8, rx: 20, rk: 28, drop: 0.1, H: [-0.08, 0.86, 0.36], D: n(-0.6, -0.2, 0.77) };
+const LOW_RIGHT = { ...STANCE, yaw: -18, hipYaw: -5, pitch: 18, lx: -30, lk: 40, lf: -8, rx: 20, rk: 30, drop: 0.11, H: [-0.16, 0.86, 0.3], D: n(-0.85, -0.3, 0.35) };
 const HIGH_LEFT = { ...STANCE, yaw: 35, hipYaw: 10, pitch: 0, H: [0.16, 1.42, 0.12], D: n(0.2, 0.85, -0.48) };
-const RIGHT_END = { ...STANCE, yaw: -45, hipYaw: -12, H: [-0.3, 1.13, 0.2], D: n(-0.95, 0.05, -0.25) };
+const RIGHT_END = { ...STANCE, yaw: -45, hipYaw: -12, H: [-0.36, 1.15, 0.24], D: n(-0.97, 0.05, -0.15) };
 // 콘티 1 단 준비 — 오른 어깨 위로 방망이를 비스듬히 메고 선다
 const READY = { ...STANCE, yaw: -15, hipYaw: -5, H: [-0.18, 1.25, 0.16], D: n(0.12, 0.82, -0.56) };
 
@@ -121,8 +125,11 @@ const CLIPS = {
     seconds: 0.62,
     keys: [
       [0, READY],
-      [0.32, { ...STANCE, yaw: -5, pitch: -8, lx: -22, lk: 30, H: [-0.05, 1.56, 0.06], D: n(0.02, 0.55, -0.83) }],
-      [0.55, { ...STANCE, yaw: -8, pitch: 20, lx: -34, lk: 40, lf: -8, rx: 20, rk: 28, drop: 0.09, H: [-0.05, 0.95, 0.38], D: n(-0.15, -0.75, 0.64) }],
+      // 콘티 1 단 준비 — 오른 어깨 위로 비스듬히 치켜든다 (머리 위 한가운데가 아니라)
+      [0.32, { ...STANCE, yaw: -12, pitch: -6, lx: -22, lk: 30, H: [-0.2, 1.45, 0.05], D: n(-0.4, 0.7, -0.55) }],
+      [0.44, { ...STANCE, yaw: -8, pitch: 8, lx: -28, lk: 35, H: [-0.12, 1.3, 0.28], D: n(-0.3, 0.55, 0.78) }],
+      // 콘티 1 단 타격 — 오른발 앞 바닥까지 내려찍는다
+      [0.55, { ...STANCE, yaw: -10, pitch: 24, lx: -34, lk: 44, lf: -8, rx: 20, rk: 32, drop: 0.12, H: [-0.1, 0.8, 0.34], D: n(-0.2, -0.85, 0.45) }],
       [0.78, LOW_RIGHT],
       [1, LOW_RIGHT],
     ],
@@ -144,31 +151,56 @@ const CLIPS = {
     keys: [
       [0, HIGH_LEFT],
       [0.25, { ...STANCE, yaw: 45, hipYaw: 12, H: [0.28, 1.24, -0.02], D: n(0.55, 0.12, -0.82) }],
-      [0.5, { ...STANCE, yaw: -5, hipYaw: -2, drop: 0.07, H: [0, 1.15, 0.45], D: n(-0.45, 0.05, 0.89) }],
+      [0.38, { ...STANCE, yaw: 20, hipYaw: 5, drop: 0.06, H: [0.2, 1.2, 0.28], D: n(0.9, 0.1, 0.4) }],
+      [0.5, { ...STANCE, yaw: -10, hipYaw: -4, drop: 0.09, H: [0, 1.12, 0.42], D: n(-0.75, 0.05, 0.65) }],
       [0.75, RIGHT_END],
       [1, RIGHT_END],
     ],
   },
 };
 
-/** 키 사이 — 숫자는 부드럽게, 방향(D)은 구면으로 */
+/**
+ * 키 사이 — 키를 지나는 곡선(에르미트, 이웃 키로 기울기)으로 잇는다. 처음 · 끝 키에서만 멈춘다.
+ * 키마다 멈췄다 가면(키마다 ease) 타격 순간에도 방망이가 멈칫했다.
+ * 방향(D)도 같은 곡선으로 이은 뒤 길이 1 로 — 이웃 키의 D 가 120° 넘게 벌어지면 사이가 뒤집히니 가운데 키를 넣는다.
+ */
 const sample = (keys, t) => {
   if (t <= keys[0][0]) return keys[0][1];
-  for (let i = 1; i < keys.length; i += 1) {
-    if (t > keys[i][0]) continue;
-    const f = ease((t - keys[i - 1][0]) / (keys[i][0] - keys[i - 1][0] || 1));
-    const a = keys[i - 1][1];
-    const b = keys[i][1];
-    const out = {};
-    for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
-      const va = a[k] ?? (Array.isArray(b[k]) ? b[k] : 0);
-      const vb = b[k] ?? (Array.isArray(a[k]) ? a[k] : 0);
-      out[k] = Array.isArray(va) ? va.map((v, j) => v + (vb[j] - v) * f) : va + (vb - va) * f;
-    }
-    out.D = unit(out.D);
-    return out;
+  const last = keys.length - 1;
+  if (t >= keys[last][0]) return keys[last][1];
+  let i = 1;
+  while (keys[i][0] < t) i += 1;
+  const [t0, a] = keys[i - 1];
+  const [t1, b] = keys[i];
+  const span = t1 - t0 || 1;
+  const u = (t - t0) / span;
+  const h00 = 2 * u ** 3 - 3 * u ** 2 + 1;
+  const h10 = u ** 3 - 2 * u ** 2 + u;
+  const h01 = -2 * u ** 3 + 3 * u ** 2;
+  const h11 = u ** 3 - u ** 2;
+  const value = (key, k) => {
+    const v = key[k] ?? STANCE[k] ?? 0;
+    return Array.isArray(v) ? v : [v];
+  };
+  // 키 j 에서의 기울기 (초당) — 처음 · 끝 키는 0
+  const slope = (j, k) => {
+    if (j === 0 || j === last) return value(keys[j][1], k).map(() => 0);
+    const p = value(keys[j - 1][1], k);
+    const q = value(keys[j + 1][1], k);
+    const dt = keys[j + 1][0] - keys[j - 1][0] || 1;
+    return p.map((v, m) => (q[m] - v) / dt);
+  };
+  const out = {};
+  for (const k of new Set([...Object.keys(a), ...Object.keys(b)])) {
+    const pa = value(a, k);
+    const pb = value(b, k);
+    const ma = slope(i - 1, k);
+    const mb = slope(i, k);
+    const v = pa.map((x, m) => h00 * x + h10 * span * ma[m] + h01 * pb[m] + h11 * span * mb[m]);
+    out[k] = Array.isArray(a[k] ?? b[k]) ? v : v[0];
   }
-  return keys[keys.length - 1][1];
+  out.D = unit(out.D);
+  return out;
 };
 
 // ── 뼈대 ────────────────────────────────────────────────────────
@@ -187,9 +219,8 @@ const baseChannels = idle.listChannels().map((channel) => ({
   path: channel.getTargetPath(),
   base: Array.from(channel.getSampler().getOutput().getArray().slice(0, channel.getTargetPath() === "rotation" ? 4 : 3)),
 }));
-const idleHips = Array.from(
-  idle.listChannels().find((c) => c.getTargetNode().getName() === "J_Bip_C_Hips" && c.getTargetPath() === "translation").getSampler().getOutput().getArray().slice(0, 3),
-);
+// 골반 바탕 높이 — 원래 칼 서기(IdleArmed)의 골반. 서기도 이 스크립트가 다시 구우니 파일에서 읽으면 돌릴 때마다 drop 만큼 내려간다
+const idleHips = [0, 0.804, 0.004];
 
 /** 한 자세 → 뼈마다 국소 회전 (+ 골반 위치) */
 function solve(v) {
@@ -237,17 +268,26 @@ function solve(v) {
     let to = sub(wrist, S);
     const dist = Math.min(Math.max(len(to), 0.08), L1 + L2 - 0.002);
     const dir = unit(to);
-    // 팔꿈치는 아래 · 바깥 · 조금 뒤
-    const poleHint = [s * 0.35, -1, -0.25];
-    let pole = sub(poleHint, scale(dir, dot(poleHint, dir)));
+    // 팔꿈치는 아래 · 바깥 · 조금 뒤. 손이 그 방향(아래)과 겹치면 바깥 · 뒤 쪽 힌트가 받쳐 준다 (한쪽만 쓰면 팔꿈치가 순간 뒤집혔다)
+    const off = (hint) => sub(hint, scale(dir, dot(hint, dir)));
+    // 손이 어깨보다 높이 갈수록 팔꿈치는 아래 대신 바깥 · 앞으로 (머리 위로 들 때)
+    const up = Math.max(0, dir[1]);
+    let pole = add(off([s * 0.45, -(1 - up), -0.25 + 0.6 * up]), scale(off([s, 0, -0.6]), 0.35));
     pole = len(pole) < 1e-4 ? cross(dir, [0, 0, 1]) : unit(pole);
     const a = (L1 * L1 - L2 * L2 + dist * dist) / (2 * dist);
     const h = Math.sqrt(Math.max(0, L1 * L1 - a * a));
     const E = add(add(S, scale(dir, a)), scale(pole, h));
     const W = add(S, scale(dir, dist));
-    const rest = [s, 0, 0];
-    const qu = mul(fromTo(rotate(shoulder.q, rest), sub(E, S)), shoulder.q);
-    const ql = mul(fromTo(rotate(qu, rest), sub(W, E)), qu);
+    // 위팔 · 팔뚝은 팔꿈치가 굽는 면으로 세운다 — 쉬는 자세(T)에서 뼈는 ±X, 팔꿈치가 굽는 축은 ∓Y.
+    // 쉬는 방향에서 가장 적게 돌리는 식(fromTo)은 팔이 몸 반대편으로 넘어갈 때 위팔이 반 바퀴씩 꼬였다
+    const bend = unit(cross(pole, dir));
+    const frame = (bone) => {
+      const xa = scale(unit(bone), s);
+      const ya = scale(bend, -s);
+      return fromBasis(xa, ya, cross(xa, ya));
+    };
+    const qu = frame(sub(E, S));
+    let ql = frame(sub(W, E));
     // 손 — +Z(엄지)가 방망이 쪽. 손가락(오른손 -X · 왼손 +X)이 감는 방향은 두 손이 같게(wrap) —
     // 실제 두 손 쥐기처럼 손가락은 같은 쪽으로 감고 손바닥은 서로 마주 본다 (따로 잡으면 손목이 X 자로 꼬였다)
     const fore = unit(sub(W, E));
@@ -257,6 +297,14 @@ function solve(v) {
     const x = side === "R" ? scale(fingers, -1) : fingers;
     const y = cross(z, x);
     const qh = fromBasis(x, y, z);
+    // 손목 비틀림의 반은 팔뚝이 진다 (팔뚝 돌리기) — 손목 혼자 다 돌리면 손목 살이 꽈배기처럼 꼬인다
+    const hl = mul(inv(ql), qh);
+    // 비틀림 각은 앞 프레임에 가깝게 이어 붙인다 (±180° 에서 반대쪽으로 넘어가면 팔뚝이 순간 반 바퀴 돈다)
+    let twist = 2 * Math.atan2(hl[0], hl[3]);
+    const before = lastTwist[side];
+    if (before !== undefined) while (Math.abs(twist - before) > Math.PI) twist += twist < before ? 2 * Math.PI : -2 * Math.PI;
+    lastTwist[side] = twist;
+    ql = mul(ql, [Math.sin(twist / 4), 0, 0, Math.cos(twist / 4)]);
     local[upper] = qnorm(mul(inv(shoulder.q), qu));
     local[lower] = qnorm(mul(inv(qu), ql));
     local[hand] = qnorm(mul(inv(ql), qh));
@@ -297,12 +345,34 @@ for (const [name, clip] of Object.entries(CLIPS)) {
   const times = [];
   for (let t = 0; t < clip.seconds; t += 1 / FPS) times.push(t);
   times.push(clip.seconds);
+  for (const key of Object.keys(lastTwist)) delete lastTwist[key];
   const poses = times.map((t) => solve(sample(clip.keys, t / clip.seconds)));
+  if (process.env.BAT_DEBUG) {
+    // 프레임 사이에 가장 크게 돈 뼈 — 팔꿈치 · 손이 순간 뒤집히는 곳 찾기
+    for (let i = 1; i < poses.length; i += 1) {
+      let worst = ["", 0];
+      for (const [bone, q] of Object.entries(poses[i].local)) {
+        const p = poses[i - 1].local[bone];
+        const deg = (Math.acos(Math.min(1, Math.abs(dot4(p, q)))) * 360) / Math.PI;
+        if (deg > worst[1]) worst = [bone, deg];
+      }
+      if (worst[1] > 12) console.log(name, (times[i] / clip.seconds).toFixed(2), worst[0], worst[1].toFixed(0));
+    }
+  }
   const timeAcc = document.createAccessor().setType("SCALAR").setArray(new Float32Array(times)).setBuffer(buffer);
   for (const { node, path, base } of baseChannels) {
     const bone = node.getName();
     let values;
-    if (path === "rotation" && poses[0].local[bone]) values = poses.map((p) => p.local[bone]);
+    if (path === "rotation" && poses[0].local[bone]) {
+      // 앞 프레임과 같은 반구로 — q 와 -q 는 같은 회전인데, 부호가 뒤집히면 게임이 그 사이를 먼 길로 돌아 손이 순간 크게 비틀렸다
+      values = [];
+      for (const p of poses) {
+        let q = p.local[bone];
+        const prev = values[values.length - 1];
+        if (prev && dot4(prev, q) < 0) q = q.map((v) => -v);
+        values.push(q);
+      }
+    }
     else if (path === "translation" && bone === "J_Bip_C_Hips") values = poses.map((p) => p.hipsPos);
     else values = times.map(() => base);
     const sampler = document

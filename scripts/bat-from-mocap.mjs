@@ -31,8 +31,9 @@ const CUTS = process.env.BAT_CUTS ? JSON.parse(process.env.BAT_CUTS) : {
   // 원래 앉는 깊이(골반 0.4 ~ 0.5 m)가 너무 깊어 절반만 (rise 0.5)
   ArmedAttack2: { from: "BatSlashA", start: 0, end: Infinity, keepFacing: true, rise: 0.5 },
   ArmedAttack3: { from: "BatSlashB", start: 0, end: Infinity, keepFacing: true, rise: 0.5 },
-  // 4단(마무리) — 홈런 스윙 (CMU 124_07 첫 스윙, 어깨 너머까지)
-  ArmedAttack4: { from: "BatSwingFull", start: 2.45, end: 3.75, mirror: false, impact: 2.82, rise: 1 },
+  // 4단(마무리) — 홈런 스윙 (CMU 124_07 첫 스윙). 콘티 「끝」처럼 방망이를 목 뒤로 감아 넘긴 데서 끊는다 (3.23 초).
+  // 그 뒤(3.75 초까지)는 타자가 방망이를 떨어뜨려 왼쪽 허리 아래로 처졌다. 타격 2.82 초 = 동작의 0.47 (게임 ARMED_IMPACT 0.5)
+  ArmedAttack4: { from: "BatSwingFull", start: 2.45, end: 3.23, mirror: false, impact: 2.82, rise: 1 },
 };
 const FPS = 60;
 

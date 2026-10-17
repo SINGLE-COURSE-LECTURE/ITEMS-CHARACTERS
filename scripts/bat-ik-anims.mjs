@@ -106,6 +106,16 @@ const RIGHT_END = { ...STANCE, yaw: -45, hipYaw: -12, H: [-0.3, 1.13, 0.2], D: n
 const READY = { ...STANCE, yaw: -15, hipYaw: -5, H: [-0.18, 1.25, 0.16], D: n(0.12, 0.82, -0.56) };
 
 const CLIPS = {
+  // 무기를 들고 서기 — 콘티 1 단 준비처럼 두 손으로 오른 어깨에 메고, 천천히 숨 쉬듯 (되풀이라 처음과 끝이 같다)
+  // 원래는 칼 서기라 팔을 넓게 벌리고 방망이를 옆으로 들어, 콤보로 넘어갈 때 자세가 튀었다
+  IdleArmed: {
+    seconds: 1.8,
+    keys: [
+      [0, READY],
+      [0.5, { ...READY, drop: 0.065, pitch: 3, H: [-0.18, 1.235, 0.165] }],
+      [1, READY],
+    ],
+  },
   // 1 단 내려찍기 — 머리 위로 들었다가 왼발을 내디디며 앞 아래로 곧장 (타격 0.5)
   ArmedAttack1: {
     seconds: 0.62,
@@ -171,6 +181,12 @@ const parentOf = new Map();
 for (const node of root.listNodes()) for (const child of node.listChildren()) parentOf.set(child.getName(), node.getName());
 const restT = (name) => nodes.get(name).getTranslation();
 const idle = root.listAnimations().find((a) => a.getName() === "IdleArmed");
+// 서기 동작도 새로 굽기 때문에 바탕(손가락 · 채널 목록)은 지우기 전에 읽어 둔다
+const baseChannels = idle.listChannels().map((channel) => ({
+  node: channel.getTargetNode(),
+  path: channel.getTargetPath(),
+  base: Array.from(channel.getSampler().getOutput().getArray().slice(0, channel.getTargetPath() === "rotation" ? 4 : 3)),
+}));
 const idleHips = Array.from(
   idle.listChannels().find((c) => c.getTargetNode().getName() === "J_Bip_C_Hips" && c.getTargetPath() === "translation").getSampler().getOutput().getArray().slice(0, 3),
 );
@@ -283,11 +299,8 @@ for (const [name, clip] of Object.entries(CLIPS)) {
   times.push(clip.seconds);
   const poses = times.map((t) => solve(sample(clip.keys, t / clip.seconds)));
   const timeAcc = document.createAccessor().setType("SCALAR").setArray(new Float32Array(times)).setBuffer(buffer);
-  for (const channel of idle.listChannels()) {
-    const node = channel.getTargetNode();
+  for (const { node, path, base } of baseChannels) {
     const bone = node.getName();
-    const path = channel.getTargetPath();
-    const base = Array.from(channel.getSampler().getOutput().getArray().slice(0, path === "rotation" ? 4 : 3));
     let values;
     if (path === "rotation" && poses[0].local[bone]) values = poses.map((p) => p.local[bone]);
     else if (path === "translation" && bone === "J_Bip_C_Hips") values = poses.map((p) => p.hipsPos);

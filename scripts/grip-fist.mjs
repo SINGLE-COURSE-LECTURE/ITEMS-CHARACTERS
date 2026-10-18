@@ -34,15 +34,22 @@ FIST.J_Bip_R_Thumb3 = axis(0, 1, 0, -30);
  * 던지기 동작(Throw…Attack1) · 던지기 서기(IdleThrow)에만 쓴다 — 나머지 동작은 주먹 그대로.
  */
 const PINCH = { ...FIST };
-PINCH.J_Bip_R_Index1 = axis(0, 0, 1, 35);
-PINCH.J_Bip_R_Index2 = axis(0, 0, 1, 50);
-PINCH.J_Bip_R_Index3 = axis(0, 0, 1, 25);
-PINCH.J_Bip_R_Middle1 = axis(0, 0, 1, 50);
-PINCH.J_Bip_R_Middle2 = axis(0, 0, 1, 70);
-PINCH.J_Bip_R_Middle3 = axis(0, 0, 1, 40);
-PINCH.J_Bip_R_Thumb1 = axis(0, 1, 0, -20);
-PINCH.J_Bip_R_Thumb2 = axis(0, 1, 0, -45);
-PINCH.J_Bip_R_Thumb3 = axis(0, 1, 0, -35);
+// 검지는 덜 굽혀 끝이 손가락 끝 쪽에 오게, 가운뎃손가락은 그 뒤를 받치고, 약지 · 새끼는 반쯤 만다
+PINCH.J_Bip_R_Index1 = axis(0, 0, 1, 28);
+PINCH.J_Bip_R_Index2 = axis(0, 0, 1, 38);
+PINCH.J_Bip_R_Index3 = axis(0, 0, 1, 22);
+PINCH.J_Bip_R_Middle1 = axis(0, 0, 1, 42);
+PINCH.J_Bip_R_Middle2 = axis(0, 0, 1, 58);
+PINCH.J_Bip_R_Middle3 = axis(0, 0, 1, 34);
+for (const finger of ["Ring", "Little"]) {
+  PINCH[`J_Bip_R_${finger}1`] = axis(0, 0, 1, 58);
+  PINCH[`J_Bip_R_${finger}2`] = axis(0, 0, 1, 80);
+  PINCH[`J_Bip_R_${finger}3`] = axis(0, 0, 1, 50);
+}
+// 엄지 — 손바닥을 가로지르지 않고 검지 끝 바로 손바닥 쪽(1.8 cm)으로 와 마주 집는다 (_pinch_fit 로 찾은 값: 손뼈 기준 FK)
+PINCH.J_Bip_R_Thumb1 = [0.2164, 0.0841, 0.2127, 0.9491];
+PINCH.J_Bip_R_Thumb2 = [0.1443, -0.0002, 0.0003, 0.9895];
+PINCH.J_Bip_R_Thumb3 = [0.0173, 0.0003, -0.0014, 0.9998];
 const isPinchClip = (name) => /^Throw[A-Za-z]*Attack\d/.test(name) || /^IdleThrow/.test(name);
 
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);

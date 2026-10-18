@@ -24,6 +24,19 @@ const GRIP_GAP = 0.085;
 /** 손 뼈(손목) 기준 주먹 가운데 (handFit.ts FALLBACK · 왼손은 좌우 반대) */
 const GRIP_R = [-0.069, 0.006, -0.004];
 const GRIP_L = [0.069, 0.006, -0.004];
+/**
+ * 창 쥐기(TWO_HAND_MODE=spear) — 창 · 깃대처럼 긴 자루는 두 손을 붙여 쥐지 않는다. 오른손이 뒤, 왼손이 앞에서 자루를 받친다.
+ * 원본 동작(총검 · 찌르기)의 왼손 자리 쪽으로 자루가 향하게 오른손을 가장 적게 돌리고, 왼손은 그 자루 위 SPEAR_GAP 만큼 앞에 붙인다.
+ * 방망이 쥐기로는 깃대가 어깨 뒤로 넘어가고 왼손이 오른손에 붙어 어색했다(사용자).
+ */
+const SPEAR = process.env.TWO_HAND_MODE === "spear";
+/**
+ * 한 손 창(TWO_HAND_MODE=spear-one) — 원본이 한 손 무기 동작(Thrust Slash · Upward Thrust)이라 왼손이 무기를 잡지 않을 때.
+ * 자루를 팔뚝 방향(팔꿈치 → 손목, 찌르면 앞)으로 뻗게 오른손만 돌리고 왼손은 원본 그대로 둔다.
+ * 왼손 쪽으로 돌렸더니 창끝이 몸 뒤로 향했다(앞 방향 성분 -0.9).
+ */
+const SPEAR_ONE = process.env.TWO_HAND_MODE === "spear-one";
+const SPEAR_GAP = [0.3, 0.55];
 const FPS = 60;
 
 // ── 벡터 · 사원수 ────────────────────────────────────────────────
@@ -134,6 +147,7 @@ for (const name of CLIPS) {
   times.push(duration);
 
   const results = { [L_UPPER]: [], [L_LOWER]: [], [L_HAND]: [] };
+  if (SPEAR || SPEAR_ONE) results["J_Bip_R_Hand"] = [];
   let worstBefore = 0;
   let worstAfter = 0;
   for (const t of times) {
@@ -151,10 +165,35 @@ for (const name of CLIPS) {
       world.set(bone, w);
       return w;
     };
-    const right = place("J_Bip_R_Hand");
-    const D = unit(rotate(right.q, [0, 0, 1]));
-    const gripR = add(right.p, rotate(right.q, GRIP_R));
-    const gripL = sub(gripR, scale(D, GRIP_GAP));
+    let right = place("J_Bip_R_Hand");
+    let D = unit(rotate(right.q, [0, 0, 1]));
+    let gripR = add(right.p, rotate(right.q, GRIP_R));
+    let gripL = sub(gripR, scale(D, GRIP_GAP));
+    if (SPEAR_ONE) {
+      const forearm = place("J_Bip_R_LowerArm");
+      const want = unit(sub(right.p, forearm.p));
+      const qr = qnorm(mul(fromTo(D, want), right.q));
+      right = { q: qr, p: right.p };
+      D = want;
+      gripR = add(right.p, rotate(qr, GRIP_R));
+      gripL = sub(gripR, scale(D, GRIP_GAP));
+      results["J_Bip_R_Hand"].push(qnorm(mul(inv(forearm.q), qr)));
+    }
+    if (SPEAR) {
+      // 원본 왼손 주먹 자리 쪽으로 자루를 돌린다
+      const handL0 = place(L_HAND);
+      const pL = add(handL0.p, rotate(handL0.q, GRIP_L));
+      const toL = sub(pL, gripR);
+      const want = unit(toL);
+      const qr = qnorm(mul(fromTo(D, want), right.q));
+      right = { q: qr, p: right.p };
+      D = want;
+      gripR = add(right.p, rotate(qr, GRIP_R));
+      const gap = Math.min(SPEAR_GAP[1], Math.max(SPEAR_GAP[0], len(toL)));
+      gripL = add(gripR, scale(D, gap));
+      const forearm = place("J_Bip_R_LowerArm");
+      results["J_Bip_R_Hand"].push(qnorm(mul(inv(forearm.q), qr)));
+    }
 
     const shoulder = place("J_Bip_L_Shoulder");
     const S = add(shoulder.p, rotate(shoulder.q, restT(L_UPPER)));
@@ -227,6 +266,7 @@ for (const name of CLIPS) {
       was.dispose();
     } else animation.addChannel(document.createAnimationChannel().setTargetNode(node).setTargetPath("rotation").setSampler(sampler));
   };
+  if (SPEAR_ONE) for (const bone of [L_UPPER, L_LOWER, L_HAND]) delete results[bone];
   for (const [bone, values] of Object.entries(results)) write(bone, values);
   for (const [bone, q] of Object.entries(L_FIST)) write(bone, times.map(() => q));
   console.log(`[two-hand] ${name} — 왼손 주먹이 방망이에서 최대 ${(worstBefore * 100).toFixed(1)}cm → ${(worstAfter * 100).toFixed(1)}cm`);

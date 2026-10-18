@@ -2,10 +2,11 @@
  * 방망이 콤보 — 실제 모션캡처를 잘라 core 동작 파일(player-anims.glb)의 ArmedAttack1 ~ 4 로 넣는다.
  *
  * 지금 쓰는 자르기 (전체 순서는 ITEMS-CHARACTERS/scripts/README 또는 메모리 bat-combo-pipeline):
- *   1 ~ 3 단 ← FIELD_INIT/blender/retarget_mixamo.py 출력의 MxSlash (Mixamo 「Great Sword Slash」 두 손 대검 3 연속 베기, 타격 0.89 · 1.77 · 2.66 초)
- *     BAT_CUTS='{"ArmedAttack1":{"from":"MxSlash","start":0.35,"end":1.2,"keepFacing":true,"rise":1},"ArmedAttack2":{"from":"MxSlash","start":1.2,"end":2.1,"keepFacing":true,"rise":1},"ArmedAttack3":{"from":"MxSlash","start":2.1,"end":3.0,"keepFacing":true,"rise":1}}'
+ *   1 ~ 3 단 ← FIELD_INIT/blender/retarget_mixamo.py 출력의 MxTwoHandClubCombo (Mixamo 「Two Hand Club Combo」 두 손 몽둥이 연속 공격 5.45 초,
+ *     타격 1.65 · 2.92 · 4.05 초 = 내려찍기 · 내려찍기 · 가로 베기). 이어 자르니 앞 단의 끝 = 다음 단의 시작
+ *     BAT_CUTS='{"ArmedAttack1":{"from":"MxTwoHandClubCombo","start":1.0,"end":2.2,"keepFacing":true,"rise":1},"ArmedAttack2":{"from":"MxTwoHandClubCombo","start":2.2,"end":3.25,"keepFacing":true,"rise":1},"ArmedAttack3":{"from":"MxTwoHandClubCombo","start":3.25,"end":4.35,"keepFacing":true,"rise":1}}'
  *   4 단 ← retarget_bat.py 출력의 BatSwingFull (CMU 124_07 홈런) — 아래 기본값
- *   서기는 copy-clip.mjs 로 MxIdle(Great Sword Idle) 을 IdleArmed 로. 그 뒤 two-hand-grip.mjs → feminine-anims.mjs → grip-fist.mjs.
+ *   서기(IdleArmed)는 원래 칼 서기(UAL1 Sword_Idle) 그대로 — 사용자가 이 기본 자세를 원했다. 그 뒤 two-hand-grip.mjs(1~4 단만) → feminine-anims.mjs → grip-fist.mjs.
  *
  * 원본: FIELD_INIT/blender/retarget_bat.py 가 VRoid 뼈대로 옮긴 glb
  *   BatSwingFull  CMU 124_07 Baseball Swing — 두 번 휘두른다 (2.8 초 · 8.4 초 근처가 타격)

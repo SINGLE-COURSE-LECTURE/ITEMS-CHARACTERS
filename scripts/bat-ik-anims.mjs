@@ -1,4 +1,7 @@
 /**
+ * (지금은 쓰지 않는다 — 2026-10-18 부터 1 ~ 3 단은 Mixamo 「Great Sword Slash」 모션캡처를 bat-from-mocap.mjs 로 잘라 쓴다.
+ *  손으로 만든 IK 자세가 모션캡처보다 어색해서 접었다. 키 방식이 필요할 때를 위해 남겨 둔다.)
+ *
  * 방망이 콤보 1 ~ 3 단 — 콘티(내려찍기 → 올려치기 → 가로 베기)대로 「방망이 자리」를 키로 잡고 두 팔은 IK 로 맞춘다.
  *
  * 키마다 정하는 것 (캐릭터 공간: 발 가운데 원점 · 위 +Y · 앞 +Z · 캐릭터 왼쪽 +X, 단위 m)
@@ -24,7 +27,7 @@ import { fileURLToPath } from "node:url";
 const here = dirname(fileURLToPath(import.meta.url));
 const animsPath = process.argv[2] ?? join(here, "..", "..", "core", "assets", "models", "player-anims.glb");
 const FPS = 60;
-/** 왼손이 오른손보다 손잡이 끝 쪽으로 이만큼 (m) — 게임은 오른손을 손잡이 끝에서 0.17 m 자리에 쥐게 붙인다 (equipment.ts buildBat GRIP) */
+/** 왼손이 오른손보다 손잡이 끝 쪽으로 이만큼 (m) — 게임은 오른손을 손잡이 끝에서 0.09 m 자리에 쥐게 붙이니 왼손은 걸림쇠 바로 위 (equipment.ts buildBat GRIP) */
 const GRIP_GAP = 0.085;
 /** 손 뼈(손목) 기준 주먹 쥔 자리 — 방망이가 지나가는 곳 (handFit.ts FALLBACK, 왼손은 좌우 반대) */
 const GRIP_R = [-0.069, 0.006, -0.004];

@@ -1,5 +1,6 @@
 /**
  * 오른손 주먹 — 동작 파일의 모든 동작에서 오른손 손가락을 방망이 콤보(bat-ik-anims.mjs)와 같은 주먹으로 고정한다.
+ * (던지기 동작 · IdleThrow 는 집는 손 PINCH — 아래)
  *
  * 무기는 늘 오른손에 쥔다(equipment.ts). 그런데 서기 · 걷기 · 달리기 같은 동작은 원래 손을 펴고 있어서
  * 방망이를 들면 펴진 손 아래에 방망이가 떠 보였다. 오른손은 언제나 쥔 모양으로 둔다 (맨손일 때도 주먹이라 어색하지 않다).
@@ -27,6 +28,22 @@ for (const finger of ["Index", "Middle", "Ring", "Little"]) {
 }
 FIST.J_Bip_R_Thumb2 = axis(0, 1, 0, -25);
 FIST.J_Bip_R_Thumb3 = axis(0, 1, 0, -30);
+/**
+ * 집는 손 — 던지는 것(종이비행기 · 지우개 · 분필)은 주먹이 아니라 엄지와 검지로 집는다.
+ * 검지 · 가운뎃손가락은 반쯤만 굽히고 엄지를 검지 쪽으로 더 모은다. 약지 · 새끼는 주먹처럼 만다.
+ * 던지기 동작(Throw…Attack1) · 던지기 서기(IdleThrow)에만 쓴다 — 나머지 동작은 주먹 그대로.
+ */
+const PINCH = { ...FIST };
+PINCH.J_Bip_R_Index1 = axis(0, 0, 1, 35);
+PINCH.J_Bip_R_Index2 = axis(0, 0, 1, 50);
+PINCH.J_Bip_R_Index3 = axis(0, 0, 1, 25);
+PINCH.J_Bip_R_Middle1 = axis(0, 0, 1, 50);
+PINCH.J_Bip_R_Middle2 = axis(0, 0, 1, 70);
+PINCH.J_Bip_R_Middle3 = axis(0, 0, 1, 40);
+PINCH.J_Bip_R_Thumb1 = axis(0, 1, 0, -20);
+PINCH.J_Bip_R_Thumb2 = axis(0, 1, 0, -45);
+PINCH.J_Bip_R_Thumb3 = axis(0, 1, 0, -35);
+const isPinchClip = (name) => /^Throw[A-Za-z]*Attack\d/.test(name) || /^IdleThrow/.test(name);
 
 const io = new NodeIO().registerExtensions(ALL_EXTENSIONS);
 const document = await io.read(animsPath);
@@ -34,8 +51,9 @@ const root = document.getRoot();
 const buffer = root.listBuffers()[0];
 let changed = 0;
 for (const animation of root.listAnimations()) {
+  const pose = isPinchClip(animation.getName()) ? PINCH : FIST;
   for (const channel of animation.listChannels()) {
-    const fist = FIST[channel.getTargetNode().getName()];
+    const fist = pose[channel.getTargetNode().getName()];
     if (!fist || channel.getTargetPath() !== "rotation") continue;
     const old = channel.getSampler();
     const count = old.getInput().getCount();

@@ -6,8 +6,9 @@
  *     타격 1.65 · 2.92 · 4.05 초 = 내려찍기 · 내려찍기 · 가로 베기). 이어 자르니 앞 단의 끝 = 다음 단의 시작
  *     BAT_CUTS='{"ArmedAttack1":{"from":"MxTwoHandClubCombo","start":1.0,"end":2.2,"keepFacing":true,"rise":1},"ArmedAttack2":{"from":"MxTwoHandClubCombo","start":2.2,"end":3.25,"keepFacing":true,"rise":1},"ArmedAttack3":{"from":"MxTwoHandClubCombo","start":3.25,"end":4.35,"keepFacing":true,"rise":1}}'
  *   4 단 ← retarget_bat.py 출력의 BatSwingFull (CMU 124_07 홈런) — 아래 기본값
- *   맨손 네 방 ← retarget_mixamo.py 출력의 MxPunchCombo (Mixamo 「Punch Combo」 잽 · 스트레이트 · 잽 · 스트레이트, 타격 0.60 · 0.87 · 1.14 · 1.38 초). 틀은 서기(BAT_BASE=Idle) · 손가락은 원본 주먹
- *     BAT_BASE=Idle BAT_CUTS='{"Attack1":{"from":"MxPunchCombo","start":0.42,"end":0.74,"keepFacing":true,"rise":1,"fingers":"source"},"Attack2":{"from":"MxPunchCombo","start":0.74,"end":1.0,"keepFacing":true,"rise":1,"fingers":"source"},"Attack3":{"from":"MxPunchCombo","start":1.0,"end":1.24,"keepFacing":true,"rise":1,"fingers":"source"},"Attack4":{"from":"MxPunchCombo","start":1.24,"end":1.78,"keepFacing":true,"rise":1,"fingers":"source"}}'
+ *   맨손 네 방 ← retarget_mixamo.py 출력 — 원투는 「Jab Cross」(Boxing Jab Cross Long: 잽 0.40 · 스트레이트 0.66 초), 3 단은 「Hook」(Short Hook To The Head: 0.43 초),
+ *     4 단은 「Cross Punch」(1.08 초, 게임이 앞으로 반 걸음 내딛게 한다 — index.ts lunge). 틀은 서기(BAT_BASE=Idle) · 손가락은 원본 주먹
+ *     BAT_BASE=Idle BAT_CUTS='{"Attack1":{"from":"MxJabCross","start":0.22,"end":0.5,"keepFacing":true,"rise":1,"fingers":"source"},"Attack2":{"from":"MxJabCross","start":0.5,"end":0.8,"keepFacing":true,"rise":1,"fingers":"source"},"Attack3":{"from":"MxHook","start":0.25,"end":0.62,"keepFacing":true,"rise":1,"fingers":"source"},"Attack4":{"from":"MxCrossPunch","start":0.78,"end":1.5,"keepFacing":true,"rise":1,"fingers":"source"}}'
  *   서기(IdleArmed)는 원래 칼 서기(UAL1 Sword_Idle) 그대로 — 사용자가 이 기본 자세를 원했다. 그 뒤 two-hand-grip.mjs(1~4 단만) → feminine-anims.mjs → grip-fist.mjs.
  *
  * 원본: FIELD_INIT/blender/retarget_bat.py 가 VRoid 뼈대로 옮긴 glb

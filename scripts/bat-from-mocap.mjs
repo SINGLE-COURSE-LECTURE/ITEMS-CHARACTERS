@@ -6,6 +6,8 @@
  *     타격 1.65 · 2.92 · 4.05 초 = 내려찍기 · 내려찍기 · 가로 베기). 이어 자르니 앞 단의 끝 = 다음 단의 시작
  *     BAT_CUTS='{"ArmedAttack1":{"from":"MxTwoHandClubCombo","start":1.0,"end":2.2,"keepFacing":true,"rise":1},"ArmedAttack2":{"from":"MxTwoHandClubCombo","start":2.2,"end":3.25,"keepFacing":true,"rise":1},"ArmedAttack3":{"from":"MxTwoHandClubCombo","start":3.25,"end":4.35,"keepFacing":true,"rise":1}}'
  *   4 단 ← retarget_bat.py 출력의 BatSwingFull (CMU 124_07 홈런) — 아래 기본값
+ *   맨손 네 방 ← retarget_mixamo.py 출력의 MxPunchCombo (Mixamo 「Punch Combo」 잽 · 스트레이트 · 잽 · 스트레이트, 타격 0.60 · 0.87 · 1.14 · 1.38 초). 틀은 서기(BAT_BASE=Idle) · 손가락은 원본 주먹
+ *     BAT_BASE=Idle BAT_CUTS='{"Attack1":{"from":"MxPunchCombo","start":0.42,"end":0.74,"keepFacing":true,"rise":1,"fingers":"source"},"Attack2":{"from":"MxPunchCombo","start":0.74,"end":1.0,"keepFacing":true,"rise":1,"fingers":"source"},"Attack3":{"from":"MxPunchCombo","start":1.0,"end":1.24,"keepFacing":true,"rise":1,"fingers":"source"},"Attack4":{"from":"MxPunchCombo","start":1.24,"end":1.78,"keepFacing":true,"rise":1,"fingers":"source"}}'
  *   서기(IdleArmed)는 원래 칼 서기(UAL1 Sword_Idle) 그대로 — 사용자가 이 기본 자세를 원했다. 그 뒤 two-hand-grip.mjs(1~4 단만) → feminine-anims.mjs → grip-fist.mjs.
  *
  * 원본: FIELD_INIT/blender/retarget_bat.py 가 VRoid 뼈대로 옮긴 glb
@@ -97,7 +99,8 @@ const source = await io.read(sourcePath);
 const document = await io.read(animsPath);
 const root = document.getRoot();
 const buffer = root.listBuffers()[0];
-const idle = root.listAnimations().find((a) => a.getName() === "IdleArmed");
+// 채널 틀 · 손가락 · 골반 기본 높이를 빌려 올 동작 — 무기는 IdleArmed, 맨손(BAT_BASE=Idle)은 서기
+const idle = root.listAnimations().find((a) => a.getName() === (process.env.BAT_BASE ?? "IdleArmed"));
 const nodesByName = new Map(root.listNodes().map((n) => [n.getName(), n]));
 
 const mirrorName = (n) => (n.includes("_L_") ? n.replace("_L_", "_R_") : n.includes("_R_") ? n.replace("_R_", "_L_") : n);
@@ -150,7 +153,8 @@ for (const [name, cut] of Object.entries(CUTS)) {
     const path = channel.getTargetPath();
     const base = Array.from(channel.getSampler().getOutput().getArray().slice(0, path === "rotation" ? 4 : 3));
     let values;
-    if (path === "rotation" && tracks.has(`${bone}|rotation`) && !/Thumb|Index|Middle|Ring|Little/.test(bone)) {
+    // 손가락은 보통 서기의 쥔 손을 쓴다. fingers: "source" 면 원본 손가락 그대로 (주먹 콤보 — Mixamo 는 손가락까지 있다)
+    if (path === "rotation" && tracks.has(`${bone}|rotation`) && (cut.fingers === "source" || !/Thumb|Index|Middle|Ring|Little/.test(bone))) {
       // 손목 덧돌리기 (handOffset [x, y, z] 도) — 도끼 · 칼 쥐는 손 방향을 방망이에 맞춘다
       const hand = cut.handOffset && bone === "J_Bip_R_Hand" ? euler(cut.handOffset) : null;
       values = times.map((t) => {

@@ -43,6 +43,11 @@ const STYLES = {
   // 방망이 — 원래는 허리를 깊이 숙이고 고개를 떨군 구부정한 자세(대기는 안짱다리로 웅크림).
   // 휘두르는 팔(무기 궤적) · 땅을 딛는 다리는 그대로 두고, torsoPitch 로 척추 · 목의 앞숙임을 줄여 윗몸을 세운다
   IdleArmed: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.35, legIn: 0, armIn: 0, armSwing: 1, headTilt: 0 },
+  // 맨손 네 방 (Mixamo Punch Combo) — 팔은 그대로, 몸짓만 조금
+  Attack1: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
+  Attack2: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
+  Attack3: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
+  Attack4: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
   ArmedAttack1: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.6, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
   ArmedAttack2: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.6, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
   ArmedAttack3: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },

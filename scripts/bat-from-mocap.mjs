@@ -4,7 +4,8 @@
  * 지금 쓰는 자르기 (전체 순서는 ITEMS-CHARACTERS/scripts/README 또는 메모리 bat-combo-pipeline):
  *   1 ~ 3 단 ← FIELD_INIT/blender/retarget_mixamo.py 출력의 MxTwoHandClubCombo (Mixamo 「Two Hand Club Combo」 두 손 몽둥이 연속 공격 5.45 초,
  *     타격 1.65 · 2.92 · 4.05 초 = 내려찍기 · 내려찍기 · 가로 베기). 이어 자르니 앞 단의 끝 = 다음 단의 시작
- *     BAT_CUTS='{"ArmedAttack1":{"from":"MxTwoHandClubCombo","start":1.0,"end":2.2,"keepFacing":true,"rise":1},"ArmedAttack2":{"from":"MxTwoHandClubCombo","start":2.2,"end":3.25,"keepFacing":true,"rise":1},"ArmedAttack3":{"from":"MxTwoHandClubCombo","start":3.25,"end":4.15,"keepFacing":true,"rise":1}}'
+ *     BAT_CUTS='{"ArmedAttack1":{"from":"MxTwoHandClubCombo","start":1.0,"end":1.85,"keepFacing":true,"rise":1},"ArmedAttack2":{"from":"MxBackhand","start":0.35,"end":1.35,"keepFacing":true,"rise":1},"ArmedAttack3":{"from":"MxTwoHandClubCombo","start":3.25,"end":4.15,"keepFacing":true,"rise":1}}'
+ *     (2026-10-27) 1 단 1.0~1.85(내려찍은 뒤 낮은 자세) · 2 단 Standing Melee Attack Backhand 0.35~1.35(retarget 에 그 fbx 도) · 3 단 ~4.15. two-hand-grip 은 1 · 3 · 4 단만(백핸드는 왼손을 놓는다)
  *   4 단 ← retarget_bat.py 출력의 BatSwingFull (CMU 124_07 홈런) — 아래 기본값
  *   맨손 네 방 ← retarget_mixamo.py 출력 — 원투는 「Jab Cross」(Boxing Jab Cross Long: 잽 0.40 · 스트레이트 0.66 초), 3 단은 「Hook」(Short Hook To The Head: 0.43 초),
  *     4 단은 「Cross Punch」(1.08 초, 게임이 앞으로 반 걸음 내딛게 한다 — index.ts lunge). 틀은 서기(BAT_BASE=Idle) · 손가락은 원본 주먹

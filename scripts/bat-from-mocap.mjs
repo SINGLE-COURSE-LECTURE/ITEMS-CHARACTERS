@@ -14,6 +14,9 @@
  *   한 손 칼 1 ~ 3 단 ← retarget_mixamo.py 출력의 MxOneHandSwordCombo (Mixamo 「One Hand Sword Combo」 4.57 초, 타격 0.99 · 2.0 · 3.02 초) (2026-10-27)
  *     BAT_CUTS='{"SwordAttack1":{"from":"MxOneHandSwordCombo","start":0.35,"end":1.42,"keepFacing":true,"rise":1},"SwordAttack2":{"from":"MxOneHandSwordCombo","start":1.42,"end":2.42,"keepFacing":true,"rise":1},"SwordAttack3":{"from":"MxOneHandSwordCombo","start":2.42,"end":3.66,"keepFacing":true,"rise":1}}'
  *     뒤에 ground-lock "^SwordAttack[123]$" → grip-fist → slim-anims, 바뀐 세 동작만 player-anims.glb 에 옮겨 넣었다 (다른 동작은 그대로)
+ *   창 2 · 3 단 (2026-10-27) ← retarget_mixamo.py 출력의 MxSlashAdvance(「Slash Advance」) · MxBayonetStabWindup(「Bayonet Stab」 Windup), 틀은 BAT_BASE=IdleSpear
+ *     BAT_CUTS='{"SpearAttack2":{"from":"MxSlashAdvance","start":0.25,"end":1.45,"keepFacing":true,"rise":1},"SpearAttack3":{"from":"MxBayonetStabWindup","start":0.25,"end":1.5,"keepFacing":true,"rise":1}}'
+ *     → TWO_HAND_MODE=spear two-hand-grip SpearAttack2 SpearAttack3 → ground-lock → grip-fist → slim-anims, 바뀐 두 동작만 옮겨 넣음
  *   서기(IdleArmed)는 원래 칼 서기(UAL1 Sword_Idle) 그대로 — 사용자가 이 기본 자세를 원했다. 그 뒤 two-hand-grip.mjs(1~4 단만) → feminine-anims.mjs → grip-fist.mjs.
  *
  * 원본: FIELD_INIT/blender/retarget_bat.py 가 VRoid 뼈대로 옮긴 glb

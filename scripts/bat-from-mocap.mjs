@@ -8,8 +8,8 @@
  *   4 단 ← retarget_bat.py 출력의 BatSwingFull (CMU 124_07 홈런) — 아래 기본값
  *   맨손 네 방 ← retarget_mixamo.py 출력 — 원투는 「Jab Cross」(Boxing Jab Cross Long: 잽 0.40 · 스트레이트 0.66 초), 3 단은 「Hook」(Short Hook To The Head: 0.43 초),
  *     4 단은 「Cross Punch」(1.08 초, 게임이 앞으로 반 걸음 내딛게 한다 — index.ts lunge). 틀은 서기(BAT_BASE=Idle) · 손가락은 원본 주먹
- *     (2026-10-27) 1 단 잽은 「Punch Combo」 첫 잽 0.47~0.88 초로 바꿨다 — 「Jab Cross」 잽은 팔꿈치가 29° 까지만 펴져 굽어 보였다(이제 19°). retarget 에 Punch Combo.fbx 도 넣는다
- *     BAT_BASE=Idle BAT_CUTS='{"Attack1":{"from":"MxPunchCombo","start":0.47,"end":0.88,"keepFacing":true,"rise":1,"fingers":"source"},"Attack2":{"from":"MxJabCross","start":0.5,"end":0.8,"keepFacing":true,"rise":1,"fingers":"source"},"Attack3":{"from":"MxHook","start":0.25,"end":0.62,"keepFacing":true,"rise":1,"fingers":"source"},"Attack4":{"from":"MxCrossPunch","start":0.78,"end":1.5,"keepFacing":true,"rise":1,"fingers":"source"}}'
+ *     (2026-10-27) 1 단 잽은 Mixamo 「Lead Jab」(Long Head Jab) 0.25~0.72 초 — 「Jab Cross」 잽은 굽은 채, 「Punch Combo」 잽은 위로 치켜 올라갔다. retarget 에 「Lead Jab Long Head.fbx」 도 넣는다
+ *     BAT_BASE=Idle BAT_CUTS='{"Attack1":{"from":"MxLeadJabLongHead","start":0.25,"end":0.72,"keepFacing":true,"rise":1,"fingers":"source"},"Attack2":{"from":"MxJabCross","start":0.5,"end":0.8,"keepFacing":true,"rise":1,"fingers":"source"},"Attack3":{"from":"MxHook","start":0.25,"end":0.62,"keepFacing":true,"rise":1,"fingers":"source"},"Attack4":{"from":"MxCrossPunch","start":0.78,"end":1.5,"keepFacing":true,"rise":1,"fingers":"source"}}'
  *   서기(IdleArmed)는 원래 칼 서기(UAL1 Sword_Idle) 그대로 — 사용자가 이 기본 자세를 원했다. 그 뒤 two-hand-grip.mjs(1~4 단만) → feminine-anims.mjs → grip-fist.mjs.
  *
  * 원본: FIELD_INIT/blender/retarget_bat.py 가 VRoid 뼈대로 옮긴 glb

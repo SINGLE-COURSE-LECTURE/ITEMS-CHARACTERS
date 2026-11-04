@@ -23,6 +23,8 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const file = process.argv[2] ?? join(here, "..", "..", "core", "assets", "models", "player-anims.glb");
+/** 이 동작만 다시 굽는다 (쉼표로) — 비우면 전부. 다른 _F 는 건드리지 않는다: 지금 파일의 Idle_F · Jump_F · Fall_F · Land_F 는 이 스크립트 결과와 다르다 (2026-11-04 확인) */
+const only = process.argv[3] ? new Set(process.argv[3].split(",")) : null;
 
 const deg = (value) => (value * Math.PI) / 180;
 
@@ -42,7 +44,8 @@ const STYLES = {
   Land: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, legIn: 9, kneeIn: -4, armIn: 12, armSwing: 1, headTilt: 0, level: true },
   // 방망이 — 원래는 허리를 깊이 숙이고 고개를 떨군 구부정한 자세(대기는 안짱다리로 웅크림).
   // 휘두르는 팔(무기 궤적) · 땅을 딛는 다리는 그대로 두고, torsoPitch 로 척추 · 목의 앞숙임을 줄여 윗몸을 세운다
-  IdleArmed: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.35, legIn: 0, armIn: 0, armSwing: 1, headTilt: 0 },
+  // 2026-11-04 다리를 벌리고 선 자세가 남자 같다 (사용자) — 다리를 모으고 무릎을 앞으로, 윗몸을 더 세운다. 무기 든 팔은 그대로
+  IdleArmed: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.2, legIn: 8, kneeIn: -4, armIn: 0, armSwing: 1, headTilt: 3 },
   // 맨손 네 방 (Mixamo Punch Combo) — 팔은 그대로, 몸짓만 조금
   Attack1: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
   Attack2: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
@@ -52,6 +55,18 @@ const STYLES = {
   ArmedAttack2: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.6, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
   ArmedAttack3: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
   ArmedAttack4: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
+  // 검류 공격 (2026-11-04) — 방망이와 같은 세기. 길이가 그대로라 타격 시점(characterModel STANCES)도 그대로다
+  SwordAttack1: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
+  SwordAttack2: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
+  SwordAttack3: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
+  SwordAttack4: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
+  AxeAttack1: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
+  AxeAttack2: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
+  AxeAttack3: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
+  GreatSwordAttack1: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
+  GreatSwordAttack2: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
+  GreatSwordAttack3: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
+  GreatSwordAttack4: { hipYaw: 1, hipRoll: 1, torsoRoll: 1, torsoPitch: 0.7, legIn: 3, armIn: 0, armSwing: 1, headTilt: 0 },
 };
 
 // ── 사원수 (x, y, z, w) ───────────────────────────────────────────────
@@ -222,7 +237,7 @@ const buffer = root.listBuffers()[0];
 
 // 다시 돌릴 때 — 전에 만든 _F 를 지운다
 for (const animation of root.listAnimations()) {
-  if (/_F$/.test(animation.getName())) {
+  if (/_F$/.test(animation.getName()) && (!only || only.has(animation.getName().slice(0, -2)))) {
     // 시간 키 · 고치지 않은 뼈의 값은 원래 동작과 같이 쓴다 — 다른 데서 안 쓰는 것만 버린다
     const samplers = animation.listSamplers();
     const owned = samplers.flatMap((sampler) => [sampler.getInput(), sampler.getOutput()]);
@@ -262,6 +277,7 @@ const read = (accessor, size) => {
 }
 
 for (const [name, style] of Object.entries(STYLES)) {
+  if (only && !only.has(name)) continue;
   const source = root.listAnimations().find((animation) => animation.getName() === name);
   if (!source) {
     console.warn(`[feminine] ${name} 동작이 없습니다`);
